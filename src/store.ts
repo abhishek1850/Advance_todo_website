@@ -31,7 +31,7 @@ const genDailyChallenge = (): DailyChallenge => {
         { title: 'Triple Threat', description: 'Complete 3 high-priority tasks', type: 'category' as const, target: 3, xpReward: 100 },
         { title: 'Quick Wins', description: '3 tasks under 15 min', type: 'time_based' as const, target: 3, xpReward: 60 },
         { title: 'Horizon Hopper', description: 'Tasks from 2 horizons', type: 'category' as const, target: 2, xpReward: 80 },
-        { title: 'Power Hour', description: 'Complete 4 tasks in an hour', type: 'complete_n' as const, target: 4, xpReward: 90 },
+        { title: 'Marathoner', description: 'Complete 8 tasks', type: 'complete_n' as const, target: 8, xpReward: 120 },
         { title: 'Category Master', description: 'Complete tasks in 3 categories', type: 'category' as const, target: 3, xpReward: 85 },
     ];
     const ch = c[Math.floor(Math.random() * c.length)];
@@ -169,13 +169,42 @@ export const useStore = create<AppState>()(
                     if (horizons.size >= 3) unlock('all_horizons');
                     p.badges = badges;
 
-                    if (p.dailyChallenge && p.dailyChallenge.date === today) {
-                        const ch = { ...p.dailyChallenge }; ch.progress += 1;
-                        if (ch.progress >= ch.target && !ch.isCompleted) {
-                            ch.isCompleted = true; p.xp += ch.xpReward;
-                            newNotifications.push({ type: 'challenge', title: 'Challenge Complete!', message: `+${ch.xpReward} XP bonus earned`, icon: '⚡' });
+                    if (p.dailyChallenge && p.dailyChallenge.date === today && !p.dailyChallenge.isCompleted) {
+                        const ch = { ...p.dailyChallenge };
+
+                        // Get all tasks completed today (including the one just completed)
+                        const completedToday = state.tasks.filter(t =>
+                            (t.isCompleted && t.id !== id && t.completedAt && isToday(parseISO(t.completedAt))) ||
+                            (t.id === id) // The current task is being completed
+                        );
+                        // Add the current task explicitly to the list for calculation if it wasn't already in valid state (it wasn't)
+                        const allCompleted = [...completedToday.filter(t => t.id !== id), task];
+
+                        let progress = 0;
+
+                        if (ch.title === 'Task Blitz' || ch.title === 'Marathoner') {
+                            progress = allCompleted.length;
+                        } else if (ch.title === 'Triple Threat') {
+                            progress = allCompleted.filter(t => t.priority === 'high' || t.priority === 'critical').length;
+                        } else if (ch.title === 'Quick Wins') {
+                            progress = allCompleted.filter(t => t.estimatedMinutes < 15).length;
+                        } else if (ch.title === 'Horizon Hopper') {
+                            progress = new Set(allCompleted.map(t => t.horizon)).size;
+                        } else if (ch.title === 'Category Master') {
+                            progress = new Set(allCompleted.map(t => t.category).filter(Boolean)).size;
+                        } else {
+                            progress = allCompleted.length;
                         }
-                        p.dailyChallenge = ch;
+
+                        if (progress > ch.progress) {
+                            ch.progress = progress;
+                            if (ch.progress >= ch.target) {
+                                ch.isCompleted = true;
+                                p.xp += ch.xpReward;
+                                newNotifications.push({ type: 'challenge', title: 'Challenge Complete!', message: `+${ch.xpReward} XP bonus earned`, icon: '⚡' });
+                            }
+                            p.dailyChallenge = ch;
+                        }
                     }
                     showCeleb = p.preferences.celebrationsEnabled;
                     const hist = [...state.completionHistory];
