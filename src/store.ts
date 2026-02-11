@@ -4,6 +4,7 @@ import type {
     Task, UserProfile, Badge, DailyChallenge, ViewType, TaskFilter, CompletionRecord, TaskHorizon
 } from './types';
 import { format, isToday, isThisMonth, isThisYear, differenceInDays, parseISO, startOfDay } from 'date-fns';
+import type { User } from 'firebase/auth';
 
 const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 const XP_PER_LEVEL = 500;
@@ -47,6 +48,8 @@ export interface Notification {
 }
 
 interface AppState {
+    user: User | null;
+    authLoading: boolean;
     tasks: Task[];
     profile: UserProfile;
     currentView: ViewType;
@@ -57,6 +60,8 @@ interface AppState {
     isTaskModalOpen: boolean;
     editingTask: Task | null;
     notifications: Notification[];
+    setUser: (user: User | null) => void;
+    setAuthLoading: (loading: boolean) => void;
     setView: (view: ViewType) => void;
     setFilter: (filter: TaskFilter) => void;
     addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'isCompleted' | 'xpValue' | 'postponedCount'>) => void;
@@ -84,6 +89,8 @@ interface AppState {
 export const useStore = create<AppState>()(
     persist(
         (set, get) => ({
+            user: null,
+            authLoading: true,
             tasks: [],
             profile: {
                 name: 'User', level: 1, xp: 0, xpToNextLevel: XP_PER_LEVEL,
@@ -103,6 +110,8 @@ export const useStore = create<AppState>()(
             editingTask: null,
             notifications: [],
 
+            setUser: (user) => set({ user }),
+            setAuthLoading: (loading) => set({ authLoading: loading }),
             setView: (view) => set({ currentView: view }),
             setFilter: (filter) => set({ filter }),
 
@@ -295,6 +304,7 @@ export const useStore = create<AppState>()(
                 profile: state.profile,
                 completionHistory: state.completionHistory,
                 currentView: state.currentView,
+                // Don't persist user object as it's non-serializable and managed by Firebase SDK
             }),
         }
     )

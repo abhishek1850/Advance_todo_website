@@ -81,7 +81,7 @@ export interface CompletionRecord {
   xpEarned: number;
 }
 
-export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements';
+export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;

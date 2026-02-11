@@ -13,6 +13,10 @@ import MonthlyView from './views/MonthlyView';
 import YearlyView from './views/YearlyView';
 import AnalyticsView from './views/AnalyticsView';
 import AchievementsView from './views/AchievementsView';
+import AuthPage from './views/AuthPage';
+import ProfileView from './views/ProfileView';
+import { auth } from './lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import type { ViewType } from './types';
 
 const VIEW_TITLES: Record<string, string> = {
@@ -22,6 +26,7 @@ const VIEW_TITLES: Record<string, string> = {
   yearly: 'Yearly Vision',
   analytics: 'Analytics',
   achievements: 'Achievements',
+  profile: 'User Profile',
 };
 
 const VIEW_KEYS: Record<string, ViewType> = {
@@ -31,6 +36,7 @@ const VIEW_KEYS: Record<string, ViewType> = {
   '4': 'yearly',
   '5': 'analytics',
   '6': 'achievements',
+  '7': 'profile',
 };
 
 function getGreeting() {
@@ -42,7 +48,18 @@ function getGreeting() {
 }
 
 function App() {
-  const { currentView, setView, openTaskModal, showCelebration, lastCelebrationXP, dismissCelebration, isTaskModalOpen } = useStore();
+  const {
+    user, setUser, authLoading, setAuthLoading,
+    currentView, setView, openTaskModal, showCelebration, lastCelebrationXP, dismissCelebration, isTaskModalOpen
+  } = useStore();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, [setUser, setAuthLoading]);
 
   const handleCelebrationDone = useCallback(() => {
     dismissCelebration();
@@ -71,6 +88,21 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openTaskModal, setView, isTaskModalOpen]);
 
+  if (authLoading) {
+    return (
+      <div style={{
+        height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--bg-primary)', color: 'var(--text-secondary)'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
@@ -79,6 +111,7 @@ function App() {
       case 'yearly': return <YearlyView />;
       case 'analytics': return <AnalyticsView />;
       case 'achievements': return <AchievementsView />;
+      case 'profile': return <ProfileView />;
       default: return <Dashboard />;
     }
   };

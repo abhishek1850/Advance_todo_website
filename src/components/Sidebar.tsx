@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User } from 'lucide-react';
 import { useStore } from '../store';
 import type { ViewType } from '../types';
 import { useState } from 'react';
@@ -11,6 +11,7 @@ const navItems: { id: ViewType; label: string; icon: React.ReactNode; shortcut: 
     { id: 'yearly', label: 'Yearly Vision', icon: <Target size={20} />, shortcut: '4' },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={20} />, shortcut: '5' },
     { id: 'achievements', label: 'Achievements', icon: <Trophy size={20} />, shortcut: '6' },
+    { id: 'profile', label: 'Profile', icon: <User size={20} />, shortcut: '7' },
 ];
 
 export default function Sidebar() {
