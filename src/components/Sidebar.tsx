@@ -142,7 +142,7 @@ export default function Sidebar() {
                                 </g>
                                 {/* Lightning bolt */}
                                 <g filter="url(#sg)">
-                                    <path d="M295 90 L205 245 L265 245 L195 420 L225 420 L340 210 L275 210 Z" fill="url(#sb)" />
+                                    <path className="aa-bolt" d="M295 90 L205 245 L265 245 L195 420 L225 420 L340 210 L275 210 Z" fill="url(#sb)" />
                                 </g>
                                 {/* Bolt highlight */}
                                 <path d="M290 105 L215 240 L260 240 L210 390" fill="none" stroke="white" strokeWidth="2" strokeOpacity="0.25" strokeLinecap="round" />
@@ -153,8 +153,24 @@ export default function Sidebar() {
                                 0%, 100% { opacity: 0.3; }
                                 50% { opacity: 0.65; }
                             }
+                            @keyframes electric {
+                                0%, 100% { filter: drop-shadow(0 0 2px #00d4ff); opacity: 1; }
+                                3% { filter: drop-shadow(0 0 15px #ffffff); opacity: 1; }
+                                6% { filter: drop-shadow(0 0 5px #00d4ff); opacity: 0.8; }
+                                7% { filter: drop-shadow(0 0 2px #00d4ff); transform: scale(1.02); }
+                                8% { filter: drop-shadow(0 0 2px #00d4ff); transform: scale(1); }
+                                40% { filter: drop-shadow(0 0 3px #00d4ff); }
+                                42% { filter: drop-shadow(0 0 20px #ffffff) brightness(1.5); }
+                                44% { filter: drop-shadow(0 0 5px #00d4ff); }
+                                90% { filter: drop-shadow(0 0 4px #00d4ff); opacity: 0.7; }
+                                92% { filter: drop-shadow(0 0 15px #ffffff) brightness(1.2); opacity: 1; }
+                            }
                             .aa-inner-light {
                                 animation: aaLight 3s ease-in-out infinite;
+                            }
+                            .aa-bolt {
+                                animation: electric 3s infinite linear;
+                                transform-origin: center;
                             }
                         `}</style>
                     </motion.div>
