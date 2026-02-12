@@ -24,7 +24,7 @@ export default function TodayView() {
 
     return (
         <div className="page-content">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+            <div className="mobile-header-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
                 <div>
                     <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Today's Tasks</h2>
                     <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>{incomplete.length} remaining • {completed.length} completed</p>

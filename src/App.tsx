@@ -160,7 +160,7 @@ function App() {
             <FocusTimer className="header-focus-timer" />
             <XPBar />
             <button className="add-task-btn" onClick={() => openTaskModal()}>
-              <Plus size={18} /> New Task
+              <Plus size={18} /> <span className="btn-text">New Task</span>
               <span className="kbd" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)' }}>N</span>
             </button>
           </div>
