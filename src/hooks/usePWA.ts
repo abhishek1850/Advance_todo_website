@@ -13,6 +13,8 @@ interface BeforeInstallPromptEvent extends Event {
 export function usePWA() {
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const [isInstallable, setIsInstallable] = useState(false);
+    const [isIOS, setIsIOS] = useState(false);
+    const [isStandalone, setIsStandalone] = useState(false);
 
     useEffect(() => {
         const handler = (e: Event) => {
@@ -24,6 +26,13 @@ export function usePWA() {
         };
 
         window.addEventListener('beforeinstallprompt', handler);
+
+        // Check if on iOS
+        const userAgent = window.navigator.userAgent.toLowerCase();
+        setIsIOS(/iphone|ipad|ipod/.test(userAgent));
+
+        // Check if already in standalone mode
+        setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
 
         return () => {
             window.removeEventListener('beforeinstallprompt', handler);
@@ -46,5 +55,5 @@ export function usePWA() {
         setIsInstallable(false);
     };
 
-    return { isInstallable, installApp };
+    return { isInstallable, isIOS, isStandalone, installApp };
 }
