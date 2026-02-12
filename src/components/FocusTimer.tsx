@@ -9,6 +9,7 @@ interface TimerProps {
 }
 
 export default function FocusTimer({ duration = 25, onComplete, className = '' }: TimerProps) {
+    const [focusDuration, setFocusDuration] = useState(duration);
     const [timeLeft, setTimeLeft] = useState(duration * 60);
     const [isActive, setIsActive] = useState(false);
     const [mode, setMode] = useState<'focus' | 'break'>('focus');
@@ -29,9 +30,24 @@ export default function FocusTimer({ duration = 25, onComplete, className = '' }
     }, [isActive, timeLeft, onComplete]);
 
     const toggleTimer = () => setIsActive(!isActive);
+
     const resetTimer = () => {
         setIsActive(false);
-        setTimeLeft(mode === 'focus' ? duration * 60 : 5 * 60);
+        setTimeLeft(mode === 'focus' ? focusDuration * 60 : 5 * 60);
+    };
+
+    const cycleDuration = () => {
+        if (isActive || mode === 'break') return;
+        const presets = [15, 25, 30, 45, 60, 90];
+        // Find current index or default to 25's index
+        let currentIndex = presets.indexOf(focusDuration);
+        if (currentIndex === -1) currentIndex = 1; // Default to 25 if custom
+
+        const nextIndex = (currentIndex + 1) % presets.length;
+        const nextDuration = presets[nextIndex];
+
+        setFocusDuration(nextDuration);
+        setTimeLeft(nextDuration * 60);
     };
 
     const formatTime = (seconds: number) => {
@@ -43,7 +59,7 @@ export default function FocusTimer({ duration = 25, onComplete, className = '' }
     const switchMode = () => {
         const newMode = mode === 'focus' ? 'break' : 'focus';
         setMode(newMode);
-        setTimeLeft(newMode === 'focus' ? duration * 60 : 5 * 60);
+        setTimeLeft(newMode === 'focus' ? focusDuration * 60 : 5 * 60);
         setIsActive(false);
     };
 
@@ -76,14 +92,20 @@ export default function FocusTimer({ duration = 25, onComplete, className = '' }
                 {mode === 'focus' ? <Flame size={16} fill="currentColor" fillOpacity={0.2} /> : <Coffee size={16} />}
             </motion.button>
 
-            <div style={{
-                fontVariantNumeric: 'tabular-nums',
-                fontWeight: 600,
-                fontSize: 14,
-                width: 44,
-                textAlign: 'center',
-                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)'
-            }}>
+            <div
+                onClick={cycleDuration}
+                title={!isActive && mode === 'focus' ? "Click to change duration (15, 25, 30, 45, 60, 90 min)" : ""}
+                style={{
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    width: 44,
+                    textAlign: 'center',
+                    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    cursor: !isActive && mode === 'focus' ? 'pointer' : 'default',
+                    userSelect: 'none'
+                }}
+            >
                 {formatTime(timeLeft)}
             </div>
 
@@ -117,4 +139,3 @@ export default function FocusTimer({ duration = 25, onComplete, className = '' }
         </div>
     );
 }
-
