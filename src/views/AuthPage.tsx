@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth, googleProvider } from '../lib/firebase';
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 import { AlertCircle, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, CheckCircle, Shield, XCircle } from 'lucide-react';
 import { useStore } from '../store';
 
@@ -106,6 +106,7 @@ export default function AuthPage() {
         try {
             if (isSignUp) {
                 const { user } = await createUserWithEmailAndPassword(auth, email, password);
+                await sendEmailVerification(user);
                 setUser(user);
             } else {
                 const { user } = await signInWithEmailAndPassword(auth, email, password);

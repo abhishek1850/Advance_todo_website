@@ -16,10 +16,11 @@ import AchievementsView from './views/AchievementsView';
 import AuthPage from './views/AuthPage';
 import ProfileView from './views/ProfileView';
 import AssistantView from './views/AssistantView';
+import VerificationPending from './views/VerificationPending';
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import FocusTimer from './components/FocusTimer';
 import { useSessionTimeout, getSmartGreeting } from './components/MotivationEngine';
+import FocusTimer from './components/FocusTimer';
 
 import type { ViewType } from './types';
 
@@ -122,8 +123,13 @@ function App() {
     );
   }
 
+
   if (!user) {
     return <AuthPage />;
+  }
+
+  if (!user.emailVerified) {
+    return <VerificationPending />;
   }
 
   const renderView = () => {
