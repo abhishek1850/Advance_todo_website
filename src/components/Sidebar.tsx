@@ -6,6 +6,7 @@ import { signOut } from 'firebase/auth';
 import type { ViewType } from '../types';
 import { useState, useEffect } from 'react';
 import { playSound } from '../lib/sounds';
+import ConfirmDialog from './ConfirmDialog';
 
 const navItems: { id: ViewType; label: string; icon: React.ReactNode; shortcut: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, shortcut: '1' },
@@ -22,6 +23,7 @@ export default function Sidebar() {
     const { currentView, setView, profile, getTodaysTasks } = useStore();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const todayIncomplete = getTodaysTasks().filter(t => !t.isCompleted).length;
 
     useEffect(() => {
@@ -261,9 +263,7 @@ export default function Sidebar() {
                 <button
                     onClick={() => {
                         playSound('click');
-                        if (window.confirm("Are you sure you want to log out?")) {
-                            signOut(auth);
-                        }
+                        setShowLogoutConfirm(true);
                     }}
                     style={{
                         display: 'flex', alignItems: 'center', gap: 12,
@@ -303,6 +303,16 @@ export default function Sidebar() {
                     )
                 }
             </AnimatePresence >
+
+            <ConfirmDialog
+                isOpen={showLogoutConfirm}
+                title="Log Out"
+                message="Are you sure you want to end your session?"
+                confirmText="Yes, Log Out"
+                cancelText="Cancel"
+                onConfirm={() => signOut(auth)}
+                onCancel={() => setShowLogoutConfirm(false)}
+            />
         </>
     );
 }
