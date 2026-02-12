@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import TaskCard from '../components/TaskCard';
 import { playSound } from '../lib/sounds';
 import ProgressRing from '../components/ProgressRing';
-import { DailyMotivation, StreakMilestone, ProductivityTip } from '../components/MotivationEngine';
+import { DailyMotivation, StreakMilestone, ProductivityTip, getSmartGreeting } from '../components/MotivationEngine';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 // Animated counter hook
@@ -66,6 +66,18 @@ export default function Dashboard() {
 
     return (
         <div className="page-content" style={{ position: 'relative' }}>
+            {/* Header / Greeting Section */}
+            <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                    <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, background: 'linear-gradient(to right, #fff, #a5a5a5)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        {getSmartGreeting(profile.name || 'Attacker')}
+                    </h1>
+                    <div style={{ fontSize: 14, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                    </div>
+                </div>
+            </div>
+
             {/* Motivational Widgets */}
             <DailyMotivation />
             <StreakMilestone />
