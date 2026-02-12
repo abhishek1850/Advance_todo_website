@@ -262,8 +262,7 @@ export default function Sidebar() {
                     </div>
                 </div>
 
-                <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {/* Install App Button */}
+                <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 20 }}>
                     {/* Install App Button */}
                     {!isStandalone && (
                         <motion.button
@@ -282,20 +281,19 @@ export default function Sidebar() {
                             }
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 12,
-                                padding: '12px 16px', margin: '0 20px',
+                                padding: '12px 16px', margin: '0 16px',
                                 background: isInstallable ? 'rgba(108, 92, 231, 0.2)' : 'rgba(108, 92, 231, 0.05)',
                                 border: isInstallable ? '1px solid #6C5CE7' : '1px solid rgba(108, 92, 231, 0.1)',
                                 borderRadius: 12,
                                 color: isInstallable ? '#fff' : '#6C5CE7',
-                                cursor: 'pointer', fontSize: 14, fontWeight: 500,
+                                cursor: 'pointer', fontSize: 13, fontWeight: 500,
                                 transition: 'all 0.2s',
-                                width: 'calc(100% - 40px)',
                                 boxShadow: isInstallable ? '0 0 10px rgba(108, 92, 231, 0.3)' : 'none'
                             }}
                             whileHover={{ scale: 1.02, backgroundColor: 'rgba(108, 92, 231, 0.2)' }}
                             whileTap={{ scale: 0.98 }}
                         >
-                            <Download size={18} />
+                            <Download size={16} />
                             <span>Install App</span>
                         </motion.button>
                     )}
@@ -307,17 +305,16 @@ export default function Sidebar() {
                         }}
                         style={{
                             display: 'flex', alignItems: 'center', gap: 12,
-                            padding: '12px 16px', margin: '0 20px 24px',
+                            padding: '12px 16px', margin: '0 16px',
                             background: 'rgba(255, 82, 82, 0.1)', border: '1px solid rgba(255, 82, 82, 0.15)',
                             borderRadius: 12, color: '#ff5252',
-                            cursor: 'pointer', fontSize: 14, fontWeight: 500,
+                            cursor: 'pointer', fontSize: 13, fontWeight: 500,
                             transition: 'all 0.2s',
-                            width: 'calc(100% - 40px)'
                         }}
                         onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.2)'; }}
                         onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.1)'; }}
                     >
-                        <LogOut size={18} />
+                        <LogOut size={16} />
                         <span>Sign Out</span>
                     </button>
                 </div>
