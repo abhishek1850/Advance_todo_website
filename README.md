@@ -4,6 +4,9 @@
 
 The productivity battleground for disciplined Attackers who finish every mission on time.
 
+📄 **[View Full Product Specification](./PRODUCT_SPEC.md)** — Detailed breakdown of all features, gamification mechanics, and future roadmap.
+🤖 **[View AI System Prompt](./AI_SYSTEM_PROMPT.md)** — Comprehensive guide for AI behavior, coaching logic, and development roadmap.
+
 ## 🛡️ Features
 
 - **Mission-Based Task Management** — Daily, Monthly, and Yearly horizons

@@ -36,6 +36,7 @@ function sanitizeContext(context: any): any {
         title: String(t.title || '').slice(0, 100),
         priority: String(t.priority || 'medium'),
         horizon: String(t.horizon || 'daily'),
+        isRolledOver: Boolean(t.isRolledOver),
       })),
     yesterdayCompletedCount: Number(context.yesterdayCompletedCount) || 0,
     streak: Number(context.streak) || 0,
@@ -66,18 +67,18 @@ export const generateAIResponse = async (userMessage: string, context: any, user
       Your role is to help users plan their day intelligently.
       
       Current User Context:
-      - Pending Tasks: ${JSON.stringify(safeContext.pendingTasks)}
+      - Pending Tasks (Title, Priority, Horizon, RolledOver): ${JSON.stringify(safeContext.pendingTasks)}
       - Yesterday's Completed Tasks: ${safeContext.yesterdayCompletedCount}
       - Current Streak: ${safeContext.streak} days
       
       User Message: "${cleanMessage}"
       
       Response Guidelines:
-      1. Suggest realistic tasks (3-6 max).
-      2. Prioritize important/critical work.
-      3. Don't simply list existing tasks; suggest actionable items or new ones if needed.
-      4. Break large goals into smaller steps.
-      5. Tone: Encouraging, structured, professional but friendly.
+      1. Suggest realistic tasks (3-6 max) based on capacity.
+      2. Prioritize EXISTING pending tasks first, especially if skipped yesterday (isRolledOver=true).
+      3. Only suggest new tasks if the plan needs filling.
+      4. Break large goals into smaller steps if they seem stuck.
+      5. Tone: Encouraging, structured, professional but friendly. Use short sentences.
       6. Output strict JSON.
 
       JSON Schema:

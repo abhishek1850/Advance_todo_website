@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, CheckCircle2, Zap } from 'lucide-react';
+import { Sparkles, CheckCircle2, Zap, AlertTriangle } from 'lucide-react';
 import { useStore } from '../store';
 import TaskCard from '../components/TaskCard';
+import { playSound } from '../lib/sounds';
 import ProgressRing from '../components/ProgressRing';
 import { DailyMotivation, StreakMilestone, ProductivityTip } from '../components/MotivationEngine';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -29,10 +30,15 @@ function useAnimatedCounter(target: number, duration = 1200) {
 }
 
 export default function Dashboard() {
-    const { profile, getTodaysTasks, getCompletionRate, getWeeklyCompletionData, getTodaysFocus, openTaskModal, getProductivityScore } = useStore();
+    const { profile, getTodaysTasks, getCompletionRate, getWeeklyCompletionData, getTodaysFocus, openTaskModal, getProductivityScore, setView, setPendingAssistantMessage, getStagnantTasks } = useStore();
     const todayTasks = getTodaysTasks();
+    const stagnantTasks = getStagnantTasks();
+    const mostStagnant = stagnantTasks.length > 0 ? stagnantTasks.sort((a, b) => (b.daysPending || 0) - (a.daysPending || 0))[0] : null;
+
     const todayCompleted = todayTasks.filter(t => t.isCompleted).length;
     const todayTotal = todayTasks.length;
+    const pendingTasks = todayTasks.filter(t => t.isRolledOver && !t.isCompleted);
+    const regularTasks = todayTasks.filter(t => !pendingTasks.includes(t));
     const focus = getTodaysFocus();
     const weekData = getWeeklyCompletionData();
     const dailyRate = getCompletionRate('daily');
@@ -79,6 +85,9 @@ export default function Dashboard() {
                         <button className="btn btn-primary" onClick={() => useStore.getState().toggleTask(focus.id)}>
                             <CheckCircle2 size={16} style={{ marginRight: 8 }} /> Complete Now
                         </button>
+                        <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-primary)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { playSound('success'); setPendingAssistantMessage("Review my tasks and suggests a plan for today."); setView("assistant"); }}>
+                            <Sparkles size={16} /> Plan My Day
+                        </button>
                     </div>
                 </motion.div>
             ) : todayTotal > 0 ? (
@@ -97,6 +106,53 @@ export default function Dashboard() {
                         <button className="btn btn-primary" onClick={() => openTaskModal()}>
                             <Zap size={16} style={{ marginRight: 8 }} /> Add Your First Task
                         </button>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Coach Insight: Procrastination Alert */}
+            {mostStagnant && (
+                <motion.div
+                    className="insight-alert"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ marginBottom: 24, padding: 16, background: 'rgba(255, 107, 107, 0.1)', border: '1px solid rgba(255, 107, 107, 0.3)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ padding: 8, background: 'rgba(255, 107, 107, 0.2)', borderRadius: 12, color: 'var(--accent-danger)' }}>
+                            <AlertTriangle size={20} />
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 600, color: 'var(--accent-danger)', fontSize: 13, marginBottom: 2 }}>COACH INSIGHT</div>
+                            <div style={{ fontSize: 14 }}>"{mostStagnant.title}" has been stuck for <span style={{ fontWeight: 700 }}>{mostStagnant.daysPending} days</span>.</div>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn-sm" style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '8px 14px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontWeight: 500 }} onClick={() => { playSound('click'); setPendingAssistantMessage(`Help me break down the task "${mostStagnant.title}" into smaller steps.`); setView('assistant'); }}>
+                            Break It Down
+                        </button>
+                        <button className="btn-sm" style={{ background: 'transparent', color: 'var(--text-tertiary)', padding: '8px 14px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border-subtle)', cursor: 'pointer' }} onClick={() => { playSound('click'); openTaskModal(mostStagnant); }}>
+                            Reschedule
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Pending Tasks Section */}
+            {pendingTasks.length > 0 && (
+                <motion.div
+                    className="pending-section"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ marginBottom: 24, padding: 16, background: 'rgba(255, 171, 0, 0.1)', border: '1px solid rgba(255, 171, 0, 0.3)', borderRadius: 16 }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#ffab00', fontWeight: 600 }}>
+                        <Zap size={18} /> Yesterday's Pending ({pendingTasks.length})
+                    </div>
+                    <div className="task-list">
+                        {pendingTasks.map((task, i) => (
+                            <TaskCard key={task.id} task={task} index={i} />
+                        ))}
                     </div>
                 </motion.div>
             )}
@@ -176,14 +232,14 @@ export default function Dashboard() {
             )}
 
             {/* Recent Tasks */}
-            {todayTasks.length > 0 && (
+            {regularTasks.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}>
                     <div className="task-list-header">
                         <h3 className="task-list-title">Today's Tasks</h3>
                         <span className="task-list-count">{todayCompleted}/{todayTotal} done</span>
                     </div>
                     <div className="task-list">
-                        {todayTasks.slice(0, 5).map((task, i) => (
+                        {regularTasks.slice(0, 5).map((task, i) => (
                             <TaskCard key={task.id} task={task} index={i} />
                         ))}
                     </div>

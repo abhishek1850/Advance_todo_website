@@ -1,142 +1,121 @@
-import { motion } from 'framer-motion';
 import { useStore } from '../store';
-import { format, parseISO } from 'date-fns';
+import { motion } from 'framer-motion';
+import { Trophy, Lock, Medal } from 'lucide-react';
+import { format } from 'date-fns';
 
 export default function AchievementsView() {
     const { profile } = useStore();
-    const unlocked = profile.badges.filter(b => b.unlockedAt);
-    const locked = profile.badges.filter(b => !b.unlockedAt);
-    const xpProgress = (profile.xp / profile.xpToNextLevel) * 100;
-    const totalXP = (profile.level - 1) * 500 + profile.xp;
+    const { badges, level, xp, xpToNextLevel } = profile;
+    const progress = Math.min(100, (xp / xpToNextLevel) * 100);
 
-    const levelIcon = profile.level < 5 ? '🌱' : profile.level < 10 ? '⭐' : profile.level < 20 ? '🌟' : profile.level < 50 ? '💎' : '👑';
-    const levelTitle = profile.level < 5 ? 'Beginner' : profile.level < 10 ? 'Rising Star' : profile.level < 20 ? 'Veteran' : profile.level < 50 ? 'Expert' : 'Legend';
+
 
     return (
-        <div className="page-content">
-            <h2 style={{ fontSize: 28, fontWeight: 900, marginBottom: 4, letterSpacing: '-0.5px' }}>Achievements</h2>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: 14, marginBottom: 32 }}>Celebrate your progress and milestones</p>
-
-            {/* Level Card */}
-            <motion.div className="card" style={{ marginBottom: 32, textAlign: 'center', position: 'relative', overflow: 'hidden' }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 30% 20%, rgba(124,108,240,0.1), transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(0,212,207,0.05), transparent 50%)', pointerEvents: 'none' }} />
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(124,108,240,0.3), transparent)' }} />
-
-                <motion.div
-                    style={{ fontSize: 72, marginBottom: 4 }}
-                    animate={{ scale: [1, 1.08, 1], rotate: [0, 3, -3, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse' }}
-                >
-                    {levelIcon}
-                </motion.div>
-                <div style={{ fontSize: 12, color: 'var(--accent-primary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>{levelTitle}</div>
-                <div style={{ fontSize: 14, color: 'var(--text-tertiary)', marginBottom: 2 }}>LEVEL</div>
-                <div style={{ fontSize: 52, fontWeight: 900, background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: 16, letterSpacing: -2 }}>
-                    {profile.level}
-                </div>
-                <div style={{ maxWidth: 320, margin: '0 auto' }}>
-                    <div className="xp-bar" style={{ width: '100%', height: 10 }}>
-                        <motion.div className="xp-fill" initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.2, ease: 'easeOut' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                        <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{profile.xp} XP</span>
-                        <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{profile.xpToNextLevel} XP</span>
+        <div className="page-content" style={{ maxWidth: 800, margin: '0 auto', paddingBottom: 80 }}>
+            {/* Header Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 24, marginBottom: 40,
+                    background: 'linear-gradient(135deg, rgba(124, 108, 240, 0.1) 0%, rgba(124, 108, 240, 0.02) 100%)',
+                    padding: 32, borderRadius: 24, border: '1px solid rgba(124, 108, 240, 0.2)'
+                }}
+            >
+                <div style={{ position: 'relative' }}>
+                    <div style={{
+                        width: 100, height: 100, borderRadius: '50%',
+                        background: 'var(--accent-primary)', display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center', color: 'white',
+                        boxShadow: '0 0 30px rgba(124, 108, 240, 0.4)'
+                    }}>
+                        <span style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{level}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>LEVEL</span>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 40, marginTop: 28 }}>
-                    {[
-                        { value: profile.totalTasksCompleted, label: 'Tasks Done', color: 'var(--text-primary)' },
-                        { value: profile.currentStreak, label: 'Day Streak', color: 'var(--accent-warning)' },
-                        { value: profile.longestStreak, label: 'Best Streak', color: 'var(--text-primary)' },
-                        { value: totalXP, label: 'Total XP', color: 'var(--accent-primary)' },
-                    ].map((stat, i) => (
-                        <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.05 }}>
-                            <div style={{ fontSize: 26, fontWeight: 900, color: stat.color }}>{stat.value}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>{stat.label}</div>
-                        </motion.div>
-                    ))}
+                <div style={{ flex: 1 }}>
+                    <h1 style={{ margin: 0, fontSize: 24, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <Trophy className="text-accent" /> Achievement Hall
+                    </h1>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                        <span>Current XP: {xp}</span>
+                        <span>Next Level: {xpToNextLevel}</span>
+                    </div>
+                    <div style={{ height: 10, background: 'rgba(255,255,255,0.1)', borderRadius: 5, overflow: 'hidden' }}>
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                            style={{ height: '100%', background: 'linear-gradient(90deg, var(--accent-primary), #a78bfa)', borderRadius: 5 }}
+                        />
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
+                        Earn XP by completing tasks and maintaining streaks to unlock new features.
+                    </div>
                 </div>
             </motion.div>
 
-            {/* Daily Challenge */}
-            {profile.dailyChallenge && (
-                <motion.div className="challenge-card" style={{ marginBottom: 32 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                    <div className="challenge-label">⚡ Daily Challenge</div>
-                    <div className="challenge-title">{profile.dailyChallenge.title}</div>
-                    <div className="challenge-desc">{profile.dailyChallenge.description}</div>
-                    <div className="challenge-progress">
-                        <div className="challenge-bar">
-                            <motion.div className="challenge-fill" initial={{ width: 0 }} animate={{ width: `${Math.min(100, (profile.dailyChallenge.progress / profile.dailyChallenge.target) * 100)}%` }} transition={{ duration: 0.8 }} />
+            {/* Badges Grid */}
+            <h2 style={{ fontSize: 18, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Medal size={20} style={{ color: 'gold' }} />
+                Badges ({badges.filter(b => b.unlockedAt).length}/{badges.length})
+            </h2>
+
+            <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16
+            }}>
+                {badges.map((badge, i) => (
+                    <motion.div
+                        key={badge.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.05 }}
+                        style={{
+                            background: badge.unlockedAt ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.2)',
+                            border: `1px solid ${badge.unlockedAt ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)'}`,
+                            borderRadius: 16,
+                            padding: 20,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center',
+                            position: 'relative',
+                            opacity: badge.unlockedAt ? 1 : 0.5,
+                            filter: badge.unlockedAt ? 'none' : 'grayscale(100%)'
+                        }}
+                        whileHover={{ y: badge.unlockedAt ? -4 : 0, borderColor: badge.unlockedAt ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)' }}
+                    >
+                        <div style={{
+                            fontSize: 32, marginBottom: 12,
+                            filter: badge.unlockedAt ? 'drop-shadow(0 0 10px rgba(255,215,0,0.3))' : 'none'
+                        }}>
+                            {badge.icon}
                         </div>
-                        <span className="challenge-xp">
-                            {profile.dailyChallenge.progress}/{profile.dailyChallenge.target} • +{profile.dailyChallenge.xpReward} XP
-                            {profile.dailyChallenge.isCompleted && ' ✅'}
-                        </span>
-                    </div>
-                </motion.div>
-            )}
+                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{badge.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.3 }}>
+                            {badge.description}
+                        </div>
 
-            {/* Unlocked Badges */}
-            {unlocked.length > 0 && (
-                <div style={{ marginBottom: 32 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>🏆</span> Unlocked
-                        <span style={{ fontSize: 14, color: 'var(--accent-primary)', fontWeight: 600 }}>({unlocked.length})</span>
-                    </h3>
-                    <div className="badge-grid">
-                        {unlocked.map((badge, i) => (
-                            <motion.div
-                                key={badge.id}
-                                className="badge-card unlocked"
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: i * 0.05 }}
-                                whileHover={{ scale: 1.06, y: -4 }}
-                            >
-                                <motion.div
-                                    className="badge-icon"
-                                    animate={{ rotate: [0, 5, -5, 0] }}
-                                    transition={{ duration: 4, repeat: Infinity, delay: i * 0.3 }}
-                                >
-                                    {badge.icon}
-                                </motion.div>
-                                <div className="badge-name">{badge.name}</div>
-                                <div className="badge-desc">{badge.description}</div>
-                                {badge.unlockedAt && (
-                                    <div className="badge-date">Unlocked {format(parseISO(badge.unlockedAt), 'MMM d, yyyy')}</div>
-                                )}
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Locked Badges */}
-            {locked.length > 0 && (
-                <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>🔒</span> Locked
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>({locked.length})</span>
-                    </h3>
-                    <div className="badge-grid">
-                        {locked.map((badge, i) => (
-                            <motion.div
-                                key={badge.id}
-                                className="badge-card locked"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: i * 0.03 }}
-                                whileHover={{ scale: 1.02 }}
-                            >
-                                <div className="badge-icon">{badge.icon}</div>
-                                <div className="badge-name">{badge.name}</div>
-                                <div className="badge-desc">{badge.requirement}</div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            )}
+                        {badge.unlockedAt ? (
+                            <div style={{
+                                marginTop: 'auto', fontSize: 11, color: 'var(--accent-success)',
+                                padding: '4px 8px', background: 'rgba(0, 200, 83, 0.1)',
+                                borderRadius: 12, fontWeight: 500
+                            }}>
+                                Unlocked {format(new Date(badge.unlockedAt), 'MMM d')}
+                            </div>
+                        ) : (
+                            <div style={{
+                                marginTop: 'auto', fontSize: 11, color: 'var(--text-tertiary)',
+                                display: 'flex', alignItems: 'center', gap: 4
+                            }}>
+                                <Lock size={10} /> {badge.requirement}
+                            </div>
+                        )}
+                    </motion.div>
+                ))}
+            </div>
         </div>
     );
 }

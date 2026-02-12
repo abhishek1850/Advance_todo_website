@@ -5,6 +5,7 @@ import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import type { ViewType } from '../types';
 import { useState, useEffect } from 'react';
+import { playSound } from '../lib/sounds';
 
 const navItems: { id: ViewType; label: string; icon: React.ReactNode; shortcut: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, shortcut: '1' },
@@ -50,7 +51,7 @@ export default function Sidebar() {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
                         className="mobile-toggle-btn"
-                        onClick={() => setMobileOpen(!mobileOpen)}
+                        onClick={() => { playSound('click'); setMobileOpen(!mobileOpen); }}
                         style={{
                             position: 'fixed',
                             top: 'max(16px, env(safe-area-inset-top))',
@@ -226,7 +227,7 @@ export default function Sidebar() {
                         <motion.button
                             key={item.id}
                             className={`nav-item ${currentView === item.id ? 'active' : ''}`}
-                            onClick={() => { setView(item.id); if (isMobile) setMobileOpen(false); }}
+                            onClick={() => { playSound('click'); setView(item.id); if (isMobile) setMobileOpen(false); }}
                             whileHover={{ x: 4 }}
                             whileTap={{ scale: 0.98 }}
                         >
@@ -258,7 +259,7 @@ export default function Sidebar() {
                 </div>
 
                 <button
-                    onClick={() => signOut(auth)}
+                    onClick={() => { playSound('click'); signOut(auth); }}
                     style={{
                         display: 'flex', alignItems: 'center', gap: 12,
                         padding: '12px 16px', margin: '16px 20px',

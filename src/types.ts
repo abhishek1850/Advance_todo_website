@@ -21,6 +21,11 @@ export interface Task {
   xpValue: number;
   subtasks: Subtask[];
   postponedCount: number;
+  isRolledOver?: boolean;
+  daysPending?: number;
+  originalDueDate?: string;
+  focusSessionsRequired?: number;
+  focusSessionsCompleted?: number;
 }
 
 export interface Subtask {
@@ -73,6 +78,8 @@ export interface UserPreferences {
   defaultHorizon: TaskHorizon;
   defaultPriority: TaskPriority;
   accentColor?: string;
+  autoRollover?: boolean;
+  rolloverMultiplier?: boolean;
 }
 
 export interface CompletionRecord {

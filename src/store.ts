@@ -7,7 +7,7 @@ import { format, isToday, isThisMonth, isThisYear, differenceInDays, parseISO, s
 import type { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
-
+import { playSound } from './lib/sounds';
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 const XP_PER_LEVEL = 500;
 const PRIORITY_XP: Record<string, number> = { low: 10, medium: 20, high: 35, critical: 50 };
@@ -76,9 +76,12 @@ interface AppState {
     dismissCelebration: () => void;
     addNotification: (n: Omit<Notification, 'id'>) => void;
     removeNotification: (id: string) => void;
+    pendingAssistantMessage?: string;
+    setPendingAssistantMessage: (msg: string | undefined) => void;
     checkDailyLogic: () => Promise<void>;
     getFilteredTasks: () => Task[];
     getTodaysTasks: () => Task[];
+    getStagnantTasks: () => Task[];
     getMonthlyTasks: () => Task[];
     getYearlyTasks: () => Task[];
     getCompletionRate: (horizon?: TaskHorizon) => number;
@@ -102,7 +105,7 @@ export const useStore = create<AppState>()(
                 joinedDate: format(new Date(), 'yyyy-MM-dd'),
                 badges: [...DEFAULT_BADGES],
                 dailyChallenge: genDailyChallenge(),
-                preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium', accentColor: '#7c6cf0' },
+                preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium', accentColor: '#7c6cf0', autoRollover: true, rolloverMultiplier: true },
             },
             currentView: 'dashboard',
             filter: {},
@@ -163,6 +166,8 @@ export const useStore = create<AppState>()(
                 }
             },
             setAuthLoading: (loading) => set({ authLoading: loading }),
+            pendingAssistantMessage: undefined,
+            setPendingAssistantMessage: (msg) => set({ pendingAssistantMessage: msg }),
             checkDailyLogic: async () => {
                 const state = get();
                 const now = new Date();
@@ -171,12 +176,38 @@ export const useStore = create<AppState>()(
 
                 let hasChanges = false;
                 const newTasks = state.tasks.map(t => {
-                    // Check for daily recurring tasks
+                    // Smart Rollover Logic
+                    if (!t.isCompleted && t.dueDate && t.horizon === 'daily') {
+                        const due = parseISO(t.dueDate);
+                        if (due < startOfToday) {
+                            hasChanges = true;
+                            // Recurring tasks logic precedence
+                            if (t.recurrence === 'daily' && t.isCompleted && t.completedAt) {
+                                const completedDate = parseISO(t.completedAt);
+                                if (completedDate < startOfToday) {
+                                    return { ...t, isCompleted: false, completedAt: null, dueDate: today };
+                                }
+                            }
+
+                            // Rollover logic for non-recurring or incomplete recurring
+                            const daysOverdue = differenceInDays(startOfToday, due);
+                            if (daysOverdue > 0) {
+                                return {
+                                    ...t,
+                                    dueDate: today,
+                                    isRolledOver: true,
+                                    daysPending: (t.daysPending || 0) + daysOverdue,
+                                    originalDueDate: t.originalDueDate || t.dueDate
+                                };
+                            }
+                        }
+                    }
+
+                    // Recurring tasks logic (existing for completed tasks that need reset)
                     if (t.recurrence === 'daily' && t.isCompleted && t.completedAt) {
                         const completedDate = parseISO(t.completedAt);
                         if (completedDate < startOfToday) {
                             hasChanges = true;
-                            // Reset task for today
                             return { ...t, isCompleted: false, completedAt: null, dueDate: today };
                         }
                     }
@@ -209,12 +240,22 @@ export const useStore = create<AppState>()(
             },
 
             updateTask: (id, updates) => set((state) => {
-                const newTasks = state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
+                const newTasks = state.tasks.map((t) => {
+                    if (t.id === id) {
+                        // If rescheduling manually, clear rollover status
+                        if (updates.dueDate && updates.dueDate !== t.dueDate) {
+                            return { ...t, ...updates, isRolledOver: false };
+                        }
+                        return { ...t, ...updates };
+                    }
+                    return t;
+                });
                 if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
                 return { tasks: newTasks };
             }),
 
             deleteTask: (id) => set((state) => {
+                playSound('delete');
                 const newTasks = state.tasks.filter((t) => t.id !== id);
                 if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
                 return { tasks: newTasks };
@@ -242,7 +283,10 @@ export const useStore = create<AppState>()(
                     while (p.xp >= p.xpToNextLevel) { p.xp -= p.xpToNextLevel; p.level += 1; p.xpToNextLevel = Math.round(XP_PER_LEVEL * Math.pow(1.15, p.level - 1)); }
 
                     if (p.level > prevLevel) {
+                        playSound('levelUp');
                         newNotifications.push({ type: 'level', title: 'Level Up!', message: `You've reached Level ${p.level}! 🎉`, icon: '🆙' });
+                    } else {
+                        playSound('success');
                     }
 
                     const lastActive = p.lastActiveDate;
@@ -261,6 +305,7 @@ export const useStore = create<AppState>()(
                         const b = badges.find((x) => x.id === bid);
                         if (b && !b.unlockedAt) {
                             b.unlockedAt = now.toISOString();
+                            playSound('levelUp');
                             newNotifications.push({ type: 'badge', title: 'Badge Unlocked!', message: `${b.icon} ${b.name}`, icon: '🏅' });
                         }
                     };
@@ -343,6 +388,7 @@ export const useStore = create<AppState>()(
                     }
 
                 } else {
+                    playSound('click');
                     // Undoing completion
                     p.xp = Math.max(0, p.xp - task.xpValue);
                     p.totalTasksCompleted = Math.max(0, p.totalTasksCompleted - 1);
@@ -383,6 +429,7 @@ export const useStore = create<AppState>()(
                 });
             },
             getTodaysTasks: () => get().tasks.filter((t) => { if (t.horizon !== 'daily') return false; if (!t.dueDate) return true; return isToday(parseISO(t.dueDate)) || parseISO(t.dueDate) <= startOfDay(new Date()); }),
+            getStagnantTasks: () => get().tasks.filter((t) => !t.isCompleted && (t.daysPending || 0) >= 3),
             getMonthlyTasks: () => get().tasks.filter((t) => { if (t.horizon !== 'monthly') return false; if (!t.dueDate) return true; return isThisMonth(parseISO(t.dueDate)); }),
             getYearlyTasks: () => get().tasks.filter((t) => { if (t.horizon !== 'yearly') return false; if (!t.dueDate) return true; return isThisYear(parseISO(t.dueDate)); }),
             getCompletionRate: (horizon) => { const ts = horizon ? get().tasks.filter((t) => t.horizon === horizon) : get().tasks; if (!ts.length) return 0; return Math.round((ts.filter((t) => t.isCompleted).length / ts.length) * 100); },
@@ -410,10 +457,29 @@ export const useStore = create<AppState>()(
             },
             getProductivityScore: () => {
                 const state = get();
-                const rate = state.getCompletionRate();
-                const streakBonus = Math.min(state.profile.currentStreak * 2, 20);
-                const levelBonus = Math.min(state.profile.level, 10);
-                return Math.min(100, Math.round(rate * 0.7 + streakBonus + levelBonus));
+                const today = format(new Date(), 'yyyy-MM-dd');
+
+                // 1. Daily Progress (50%)
+                const todayTasks = state.getTodaysTasks();
+                const totalToday = todayTasks.length;
+                const completedToday = todayTasks.filter(t => t.isCompleted).length;
+                const dailyRate = totalToday > 0 ? (completedToday / totalToday) * 100 : 0;
+
+                // 2. Consistency / Streak (30%)
+                const streak = state.profile.currentStreak;
+                const streakScore = Math.min(streak * 3, 30); // Cap at 10 days for max streak score
+
+                // 3. Momentum / XP (20%)
+                const history = state.completionHistory.find(h => h.date === today);
+                const xpToday = history ? history.xpEarned : 0;
+                const momentumScore = Math.min(xpToday / 20, 20); // 400 XP = max momentum
+
+                // 4. Penalties & Bonuses
+                const stagnant = state.tasks.filter(t => !t.isCompleted && (t.daysPending || 0) >= 3).length;
+                const penalty = stagnant * 5;
+
+                const rawScore = (dailyRate * 0.5) + streakScore + momentumScore - penalty;
+                return Math.max(0, Math.min(100, Math.round(rawScore)));
             },
         }),
         {

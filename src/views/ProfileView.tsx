@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Save, Loader2, Trophy, Flame, Target, TrendingUp, Award, Star, Edit2, Sparkles } from 'lucide-react';
+import { LogOut, Save, Loader2, Trophy, Flame, Target, TrendingUp, Award, Star, Edit2 } from 'lucide-react';
 import { useStore } from '../store';
 import { auth, db } from '../lib/firebase';
 import { updateProfile, signOut } from 'firebase/auth';

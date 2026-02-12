@@ -1,20 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { motion } from 'framer-motion';
-import { Send, Sparkles, Loader2, Plus, BrainCircuit, User as UserIcon, MessageSquare, AlertTriangle } from 'lucide-react';
-import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { Send, Sparkles, Loader2, Plus, BrainCircuit, User as UserIcon, MessageSquare, AlertTriangle, CheckCircle2, Trash2, Download } from 'lucide-react';
+import { collection, addDoc, query, where, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { AIChatMessage } from '../types';
 import { format } from 'date-fns';
 import { generateAIResponse } from '../lib/ai';
 
 export default function AssistantView() {
-    const { user, tasks, addTask, getStreak } = useStore();
+    const { user, tasks, addTask, getStreak, pendingAssistantMessage, setPendingAssistantMessage } = useStore();
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<AIChatMessage[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-send pending message
+    useEffect(() => {
+        if (pendingAssistantMessage && !loading) {
+            handleSend(pendingAssistantMessage);
+            setPendingAssistantMessage(undefined);
+        }
+    }, [pendingAssistantMessage]);
 
     useEffect(() => {
         if (!user) return;
@@ -45,10 +53,12 @@ export default function AssistantView() {
         return () => unsubscribe();
     }, [user]);
 
-    const handleSend = async () => {
-        if (!input.trim() || !user) return;
-        const userMsg = input.trim().slice(0, 1000); // Security: limit message length
+    const handleSend = async (messageText?: string) => {
+        const textToSend = typeof messageText === 'string' ? messageText : input;
+        if (!textToSend.trim() || !user) return;
+        const userMsg = textToSend.trim().slice(0, 1000); // Security: limit message length
         if (userMsg.length < 2) return;
+
         setInput('');
         setLoading(true);
         setError(null);
@@ -68,7 +78,7 @@ export default function AssistantView() {
             }
 
             // 2. Prepare Context
-            const activeTasks = tasks.filter(t => !t.isCompleted).map(t => ({ title: t.title, priority: t.priority, horizon: t.horizon }));
+            const activeTasks = tasks.filter(t => !t.isCompleted).map(t => ({ title: t.title, priority: t.priority, horizon: t.horizon, isRolledOver: t.isRolledOver }));
             const context = {
                 pendingTasks: activeTasks,
                 yesterdayCompletedCount: 0,
@@ -136,7 +146,49 @@ export default function AssistantView() {
 
     return (
         <div className="page-content" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', maxWidth: 900, margin: '0 auto' }}>
-            <div className="chat-header" style={{ marginBottom: 20, textAlign: 'center' }}>
+            <div className="chat-header" style={{ marginBottom: 20, textAlign: 'center', position: 'relative' }}>
+                <div style={{ position: 'absolute', right: 0, top: 0, display: 'flex', gap: 8 }}>
+                    <button
+                        onClick={() => {
+                            if (messages.length === 0) return;
+                            const text = messages.map(m => `${m.role === 'user' ? 'You' : 'Coach'}: ${m.content}`).join('\n\n');
+                            const blob = new Blob([text], { type: 'text/plain' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `coach-aries-history-${format(new Date(), 'yyyy-MM-dd')}.txt`;
+                            a.click();
+                        }}
+                        className="btn-icon"
+                        title="Export Chat"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 8, borderRadius: 8 }}
+                    >
+                        <Download size={18} />
+                    </button>
+                    <button
+                        onClick={async () => {
+                            if (!window.confirm('Are you sure you want to clear your chat history? This cannot be undone.')) return;
+                            setLoading(true);
+                            try {
+                                const q = query(collection(db, 'ai_chats'), where('userId', '==', user?.uid));
+                                const snapshot = await getDocs(q);
+                                const batch = writeBatch(db);
+                                snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                                await batch.commit();
+                            } catch (error) {
+                                console.error("Error clearing history:", error);
+                                setError("Failed to clear history.");
+                            } finally {
+                                setLoading(false);
+                            }
+                        }}
+                        className="btn-icon"
+                        title="Clear History"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 8, borderRadius: 8 }}
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                </div>
                 <div style={{ display: 'inline-flex', padding: 12, background: 'rgba(124, 108, 240, 0.1)', borderRadius: 16, marginBottom: 12 }}>
                     <BrainCircuit size={32} color="var(--accent-primary)" />
                 </div>
@@ -188,22 +240,35 @@ export default function AssistantView() {
                         {msg.suggestedTasks && msg.suggestedTasks.length > 0 && (
                             <div style={{ marginTop: 16, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 12 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--accent-primary)' }}>SUGGESTED TASKS</div>
-                                {msg.suggestedTasks.map((t: any, i: number) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <div>
-                                            <div style={{ fontWeight: 500 }}>{t.title}</div>
-                                            <div style={{ fontSize: 12, opacity: 0.7 }}>{t.priority} • {t.estimatedTime}m • {t.reason}</div>
+                                {msg.suggestedTasks.map((t: any, i: number) => {
+                                    const existingTask = tasks.find(ex => ex.title.toLowerCase() === t.title.toLowerCase() && !ex.isCompleted);
+                                    return (
+                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    {t.title}
+                                                    {existingTask && <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4, opacity: 0.7 }}>Active</span>}
+                                                </div>
+                                                <div style={{ fontSize: 12, opacity: 0.7 }}>{t.priority} • {t.estimatedTime}m • {t.reason}</div>
+                                            </div>
+                                            {!existingTask && (
+                                                <button
+                                                    onClick={() => handleAddTask(t)}
+                                                    className="btn-icon"
+                                                    style={{ background: 'var(--accent-success)', color: 'white', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}
+                                                    title="Add to My Tasks"
+                                                >
+                                                    <Plus size={16} />
+                                                </button>
+                                            )}
+                                            {existingTask && (
+                                                <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+                                                    <CheckCircle2 size={16} />
+                                                </div>
+                                            )}
                                         </div>
-                                        <button
-                                            onClick={() => handleAddTask(t)}
-                                            className="btn-icon"
-                                            style={{ background: 'var(--accent-success)', color: 'white', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            title="Add to My Tasks"
-                                        >
-                                            <Plus size={16} />
-                                        </button>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </motion.div>
@@ -241,7 +306,7 @@ export default function AssistantView() {
                         disabled={loading}
                     />
                     <button
-                        onClick={handleSend}
+                        onClick={() => handleSend()}
                         disabled={loading || !input.trim()}
                         style={{
                             position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',

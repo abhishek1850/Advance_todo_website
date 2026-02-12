@@ -69,8 +69,8 @@ export default function TaskCard({ task, index = 0 }: TaskCardProps) {
                             </span>
                         )}
                         {task.dueDate && (
-                            <span className={`task-due ${isOverdue ? 'overdue' : ''}`}>
-                                {isDueToday ? '📌 Today' : isOverdue ? `⚠️ ${format(parseISO(task.dueDate), 'MMM d')}` : `📅 ${format(parseISO(task.dueDate), 'MMM d')}`}
+                            <span className={`task-due ${isOverdue ? 'overdue' : ''} ${task.isRolledOver ? 'rollover' : ''}`}>
+                                {task.isRolledOver ? '⚠️ Pending' : isDueToday ? '📌 Today' : isOverdue ? `⚠️ ${format(parseISO(task.dueDate), 'MMM d')}` : `📅 ${format(parseISO(task.dueDate), 'MMM d')}`}
                             </span>
                         )}
                     </div>
