@@ -265,7 +265,7 @@ export default function Sidebar() {
                 <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* Install App Button */}
                     {/* Install App Button */}
-                    {!isStandalone && (isInstallable || isIOS) && (
+                    {!isStandalone && (
                         <motion.button
                             className="install-btn"
                             onClick={() => {
@@ -274,6 +274,8 @@ export default function Sidebar() {
                                     installApp();
                                 } else if (isIOS) {
                                     alert("To install on iOS:\n1. Tap the 'Share' button\n2. Scroll down and tap 'Add to Home Screen'");
+                                } else {
+                                    alert("To install the app:\nLook for 'Add to Home Screen' or 'Install App' in your browser menu.");
                                 }
                             }}
                             style={{
