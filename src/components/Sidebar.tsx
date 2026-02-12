@@ -259,7 +259,12 @@ export default function Sidebar() {
                 </div>
 
                 <button
-                    onClick={() => { playSound('click'); signOut(auth); }}
+                    onClick={() => {
+                        playSound('click');
+                        if (window.confirm("Are you sure you want to log out?")) {
+                            signOut(auth);
+                        }
+                    }}
                     style={{
                         display: 'flex', alignItems: 'center', gap: 12,
                         padding: '12px 16px', margin: '16px 20px',
