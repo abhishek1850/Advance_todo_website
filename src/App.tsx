@@ -14,6 +14,7 @@ import YearlyView from './views/YearlyView';
 import AnalyticsView from './views/AnalyticsView';
 import AchievementsView from './views/AchievementsView';
 import AuthPage from './views/AuthPage';
+import VerificationPending from './views/VerificationPending';
 import ProfileView from './views/ProfileView';
 import AssistantView from './views/AssistantView';
 
@@ -126,6 +127,10 @@ function App() {
 
   if (!user) {
     return <AuthPage />;
+  }
+
+  if (!user.emailVerified) {
+    return <VerificationPending />;
   }
 
 

@@ -116,7 +116,15 @@ export const useStore = create<AppState>()(
             setUser: async (user) => {
                 set({ user });
                 if (user) {
+                    // Start loading
                     set({ authLoading: true });
+
+                    // Check verification
+                    if (!user.emailVerified) {
+                        set({ authLoading: false });
+                        return;
+                    }
+
                     try {
                         const docRef = doc(db, 'users', user.uid);
                         const docSnap = await getDoc(docRef);
