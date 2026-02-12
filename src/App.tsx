@@ -16,7 +16,7 @@ import AchievementsView from './views/AchievementsView';
 import AuthPage from './views/AuthPage';
 import ProfileView from './views/ProfileView';
 import AssistantView from './views/AssistantView';
-import VerificationPending from './views/VerificationPending';
+
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { useSessionTimeout, getSmartGreeting } from './components/MotivationEngine';
@@ -128,9 +128,7 @@ function App() {
     return <AuthPage />;
   }
 
-  if (!user.emailVerified) {
-    return <VerificationPending />;
-  }
+
 
   const renderView = () => {
     switch (currentView) {

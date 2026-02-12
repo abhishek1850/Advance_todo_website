@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit } from 'lucide-react';
+import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut } from 'lucide-react';
 import { useStore } from '../store';
+import { auth } from '../lib/firebase';
+import { signOut } from 'firebase/auth';
 import type { ViewType } from '../types';
 import { useState, useEffect } from 'react';
 
@@ -193,6 +195,24 @@ export default function Sidebar() {
                         <span className="stat-value">{profile.totalTasksCompleted}</span>
                     </div>
                 </div>
+
+                <button
+                    onClick={() => signOut(auth)}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 16px', margin: '16px 20px',
+                        background: 'rgba(255, 82, 82, 0.1)', border: '1px solid rgba(255, 82, 82, 0.15)',
+                        borderRadius: 12, color: '#ff5252',
+                        cursor: 'pointer', fontSize: 14, fontWeight: 500,
+                        transition: 'all 0.2s',
+                        width: 'calc(100% - 40px)'
+                    }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.2)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.1)'; }}
+                >
+                    <LogOut size={18} />
+                    <span>Sign Out</span>
+                </button>
             </motion.aside >
 
             {/* Backdrop for mobile */}

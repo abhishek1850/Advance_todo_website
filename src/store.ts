@@ -132,10 +132,17 @@ export const useStore = create<AppState>()(
                         } else {
                             const state = get();
                             await setDoc(docRef, {
+                                uid: user.uid,
+                                name: user.displayName || 'Anonymous',
+                                email: user.email,
+                                photoURL: user.photoURL,
+                                createdAt: new Date().toISOString(),
                                 tasks: state.tasks,
-                                profile: state.profile,
+                                profile: {
+                                    ...state.profile,
+                                    name: user.displayName || state.profile.name
+                                },
                                 completionHistory: state.completionHistory,
-                                createdAt: new Date().toISOString()
                             });
                             set({ authLoading: false });
                         }
