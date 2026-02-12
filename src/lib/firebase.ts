@@ -1,20 +1,27 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
+// Firebase config from environment variables — never hardcode secrets
 const firebaseConfig = {
-    apiKey: "AIzaSyB7HQXRGYXNxvuC8vuMe3xHBzdjXsTnAdI",
-    authDomain: "taskflow-13401.firebaseapp.com",
-    projectId: "taskflow-13401",
-    storageBucket: "taskflow-13401.firebasestorage.app",
-    messagingSenderId: "667845880176",
-    appId: "1:667845880176:web:f92eacf13f5b6aaa8387b5",
-    measurementId: "G-M4S15108ZM"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+// Validate that required env vars are present
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'] as const;
+for (const key of requiredKeys) {
+    if (!firebaseConfig[key]) {
+        console.error(`Missing Firebase config: VITE_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
+    }
+}
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+export const db = getFirestore(app);

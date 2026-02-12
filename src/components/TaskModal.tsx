@@ -40,15 +40,19 @@ export default function TaskModal() {
         }
     }, [editingTask, isTaskModalOpen]);
 
+    // Sanitize text input
+    const sanitize = (text: string, maxLen: number) => text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, maxLen);
+
     const handleSubmit = () => {
-        if (!title.trim()) return;
+        const cleanTitle = sanitize(title, 200);
+        if (!cleanTitle) return;
         const taskData = {
-            title: title.trim(),
-            description: description.trim(),
-            horizon, priority, category,
+            title: cleanTitle,
+            description: sanitize(description, 1000),
+            horizon, priority, category: sanitize(category, 50),
             dueDate: dueDate ? new Date(dueDate).toISOString() : '',
-            recurrence, energyLevel, estimatedMinutes,
-            tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+            recurrence, energyLevel, estimatedMinutes: Math.min(Math.max(estimatedMinutes, 5), 480),
+            tags: tags.split(',').map(t => sanitize(t, 30)).filter(Boolean).slice(0, 10),
             subtasks: editingTask?.subtasks || [],
         };
         if (editingTask) {
@@ -76,12 +80,12 @@ export default function TaskModal() {
                         <div className="modal-body">
                             <div className="form-group">
                                 <label className="form-label">Title</label>
-                                <input className="form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="What needs to be done?" autoFocus />
+                                <input className="form-input" value={title} onChange={e => setTitle(e.target.value.slice(0, 200))} placeholder="What needs to be done?" maxLength={200} autoFocus />
                             </div>
 
                             <div className="form-group">
                                 <label className="form-label">Description</label>
-                                <textarea className="form-textarea" value={description} onChange={e => setDescription(e.target.value)} placeholder="Add details..." />
+                                <textarea className="form-textarea" value={description} onChange={e => setDescription(e.target.value.slice(0, 1000))} placeholder="Add details..." maxLength={1000} />
                             </div>
 
                             <div className="form-group">
@@ -111,8 +115,8 @@ export default function TaskModal() {
                                 <div className="form-group">
                                     <label className="form-label">Category</label>
                                     <select className="form-select" value={category} onChange={e => setCategory(e.target.value)}>
-                                        <option value="">Select...</option>
-                                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        <option value="" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Select...</option>
+                                        {CATEGORIES.map(c => <option key={c} value={c} style={{ backgroundColor: '#1e1e2e', color: 'white' }}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div className="form-group">
@@ -125,14 +129,14 @@ export default function TaskModal() {
                                 <div className="form-group">
                                     <label className="form-label">Recurrence</label>
                                     <select className="form-select" value={recurrence} onChange={e => setRecurrence(e.target.value as RecurrencePattern)}>
-                                        <option value="none">None</option>
-                                        <option value="daily">Daily</option>
-                                        <option value="weekdays">Weekdays</option>
-                                        <option value="weekly">Weekly</option>
-                                        <option value="biweekly">Bi-weekly</option>
-                                        <option value="monthly">Monthly</option>
-                                        <option value="quarterly">Quarterly</option>
-                                        <option value="yearly">Yearly</option>
+                                        <option value="none" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>None</option>
+                                        <option value="daily" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Daily</option>
+                                        <option value="weekdays" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Weekdays</option>
+                                        <option value="weekly" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Weekly</option>
+                                        <option value="biweekly" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Bi-weekly</option>
+                                        <option value="monthly" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Monthly</option>
+                                        <option value="quarterly" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Quarterly</option>
+                                        <option value="yearly" style={{ backgroundColor: '#1e1e2e', color: 'white' }}>Yearly</option>
                                     </select>
                                 </div>
                                 <div className="form-group">
@@ -158,7 +162,7 @@ export default function TaskModal() {
 
                             <div className="form-group">
                                 <label className="form-label">Tags (comma separated)</label>
-                                <input className="form-input" value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. urgent, project-x" />
+                                <input className="form-input" value={tags} onChange={e => setTags(e.target.value.slice(0, 200))} placeholder="e.g. urgent, project-x" maxLength={200} />
                             </div>
                         </div>
 

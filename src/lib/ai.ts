@@ -1,0 +1,179 @@
+// ============================================
+// AI Module with Security Hardening
+// ============================================
+
+// Rate limiting: max 10 requests per minute per session
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 10;
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = rateLimitMap.get(userId) || [];
+  const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+  if (recent.length >= RATE_LIMIT_MAX) return false;
+  recent.push(now);
+  rateLimitMap.set(userId, recent);
+  return true;
+}
+
+// Sanitize user input to prevent prompt injection
+function sanitizeInput(input: string): string {
+  // Trim and limit length
+  let clean = input.trim().slice(0, 1000);
+  // Remove potential control characters
+  clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  return clean;
+}
+
+// Sanitize context data to prevent data leakage
+function sanitizeContext(context: any): any {
+  const maxTasks = 20; // Don't send more than 20 tasks to AI
+  return {
+    pendingTasks: (context.pendingTasks || [])
+      .slice(0, maxTasks)
+      .map((t: any) => ({
+        title: String(t.title || '').slice(0, 100),
+        priority: String(t.priority || 'medium'),
+        horizon: String(t.horizon || 'daily'),
+      })),
+    yesterdayCompletedCount: Number(context.yesterdayCompletedCount) || 0,
+    streak: Number(context.streak) || 0,
+  };
+}
+
+export const generateAIResponse = async (userMessage: string, context: any, userId?: string) => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing API Key. Please set VITE_GEMINI_API_KEY in .env");
+  }
+
+  // Rate limit check
+  if (userId && !checkRateLimit(userId)) {
+    throw new Error("You're sending messages too fast. Please wait a moment before trying again.");
+  }
+
+  // Sanitize inputs
+  const cleanMessage = sanitizeInput(userMessage);
+  if (!cleanMessage) {
+    throw new Error("Message cannot be empty.");
+  }
+
+  const safeContext = sanitizeContext(context);
+
+  const systemPrompt = `
+      You are an elite productivity battle coach inside a mission management app (Attackers Arena).
+      Your role is to help users plan their day intelligently.
+      
+      Current User Context:
+      - Pending Tasks: ${JSON.stringify(safeContext.pendingTasks)}
+      - Yesterday's Completed Tasks: ${safeContext.yesterdayCompletedCount}
+      - Current Streak: ${safeContext.streak} days
+      
+      User Message: "${cleanMessage}"
+      
+      Response Guidelines:
+      1. Suggest realistic tasks (3-6 max).
+      2. Prioritize important/critical work.
+      3. Don't simply list existing tasks; suggest actionable items or new ones if needed.
+      4. Break large goals into smaller steps.
+      5. Tone: Encouraging, structured, professional but friendly.
+      6. Output strict JSON.
+
+      JSON Schema:
+      {
+        "reflection": "Brief analysis of their workload or situation.",
+        "suggestedTasks": [
+          {
+            "title": "Task Title",
+            "priority": "critical | high | medium | low",
+            "estimatedTime": "number (minutes)",
+            "reason": "Why this task?"
+          }
+        ],
+        "focusAdvice": "One sentence of actionable advice."
+      }
+    `;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000); // 30s timeout
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: systemPrompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.7
+        },
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+        ]
+      })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      await response.json().catch(() => ({}));
+      // Don't expose internal error details to user
+      if (response.status === 403 || response.status === 401) {
+        throw new Error("AI service authentication failed. Please contact support.");
+      } else if (response.status === 429) {
+        throw new Error("AI service is busy. Please try again in a moment.");
+      } else {
+        throw new Error(`AI service error (${response.status}). Please try again.`);
+      }
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) throw new Error("Empty response from AI. Please try again.");
+
+    try {
+      let cleanedText = text.trim();
+      cleanedText = cleanedText.replace(/```json/g, '').replace(/```/g, '');
+      const firstOpen = cleanedText.indexOf('{');
+      const lastClose = cleanedText.lastIndexOf('}');
+
+      if (firstOpen !== -1 && lastClose !== -1) {
+        cleanedText = cleanedText.substring(firstOpen, lastClose + 1);
+      }
+
+      const parsed = JSON.parse(cleanedText);
+
+      // Validate the response structure
+      return {
+        reflection: String(parsed.reflection || "Here's my analysis.").slice(0, 500),
+        suggestedTasks: Array.isArray(parsed.suggestedTasks)
+          ? parsed.suggestedTasks.slice(0, 6).map((t: any) => ({
+            title: String(t.title || 'Untitled').slice(0, 100),
+            priority: ['critical', 'high', 'medium', 'low'].includes(t.priority) ? t.priority : 'medium',
+            estimatedTime: Math.min(Math.max(Number(t.estimatedTime) || 30, 5), 480),
+            reason: String(t.reason || '').slice(0, 200),
+          }))
+          : [],
+        focusAdvice: String(parsed.focusAdvice || "Stay focused and take one step at a time.").slice(0, 300),
+      };
+    } catch {
+      return {
+        reflection: "I'm having trouble formatting my response, but here are my thoughts.",
+        suggestedTasks: [],
+        focusAdvice: text.substring(0, 150) + "..."
+      };
+    }
+
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw error;
+  }
+};

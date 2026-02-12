@@ -5,8 +5,10 @@ import type {
 } from './types';
 import { format, isToday, isThisMonth, isThisYear, differenceInDays, parseISO, startOfDay } from 'date-fns';
 import type { User } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { db } from './lib/firebase';
 
-const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 const XP_PER_LEVEL = 500;
 const PRIORITY_XP: Record<string, number> = { low: 10, medium: 20, high: 35, critical: 50 };
 const HORIZON_MULT: Record<string, number> = { daily: 1, monthly: 1.5, yearly: 2 };
@@ -74,6 +76,7 @@ interface AppState {
     dismissCelebration: () => void;
     addNotification: (n: Omit<Notification, 'id'>) => void;
     removeNotification: (id: string) => void;
+    checkDailyLogic: () => Promise<void>;
     getFilteredTasks: () => Task[];
     getTodaysTasks: () => Task[];
     getMonthlyTasks: () => Task[];
@@ -99,7 +102,7 @@ export const useStore = create<AppState>()(
                 joinedDate: format(new Date(), 'yyyy-MM-dd'),
                 badges: [...DEFAULT_BADGES],
                 dailyChallenge: genDailyChallenge(),
-                preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium' },
+                preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium', accentColor: '#7c6cf0' },
             },
             currentView: 'dashboard',
             filter: {},
@@ -110,24 +113,104 @@ export const useStore = create<AppState>()(
             editingTask: null,
             notifications: [],
 
-            setUser: (user) => set({ user }),
+            setUser: async (user) => {
+                set({ user });
+                if (user) {
+                    set({ authLoading: true });
+                    try {
+                        const docRef = doc(db, 'users', user.uid);
+                        const docSnap = await getDoc(docRef);
+
+                        if (docSnap.exists()) {
+                            const data = docSnap.data();
+                            set({
+                                tasks: data.tasks || [],
+                                profile: { ...get().profile, ...data.profile },
+                                completionHistory: data.completionHistory || [],
+                                authLoading: false
+                            });
+                        } else {
+                            const state = get();
+                            await setDoc(docRef, {
+                                tasks: state.tasks,
+                                profile: state.profile,
+                                completionHistory: state.completionHistory,
+                                createdAt: new Date().toISOString()
+                            });
+                            set({ authLoading: false });
+                        }
+                    } catch (error) {
+                        console.warn("Error loading user data:", error);
+                        set({ authLoading: false });
+                    }
+                } else {
+                    set({ authLoading: false });
+                }
+            },
             setAuthLoading: (loading) => set({ authLoading: loading }),
+            checkDailyLogic: async () => {
+                const state = get();
+                const now = new Date();
+                const today = format(now, 'yyyy-MM-dd');
+                const startOfToday = startOfDay(now);
+
+                let hasChanges = false;
+                const newTasks = state.tasks.map(t => {
+                    // Check for daily recurring tasks
+                    if (t.recurrence === 'daily' && t.isCompleted && t.completedAt) {
+                        const completedDate = parseISO(t.completedAt);
+                        if (completedDate < startOfToday) {
+                            hasChanges = true;
+                            // Reset task for today
+                            return { ...t, isCompleted: false, completedAt: null, dueDate: today };
+                        }
+                    }
+                    return t;
+                });
+
+                if (hasChanges) {
+                    set({ tasks: newTasks });
+                    if (state.user) {
+                        await updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
+                    }
+                }
+            },
             setView: (view) => set({ currentView: view }),
             setFilter: (filter) => set({ filter }),
 
-            addTask: (taskData) => {
+            addTask: async (taskData) => {
                 const xpValue = Math.round(PRIORITY_XP[taskData.priority] * HORIZON_MULT[taskData.horizon]);
                 const newTask: Task = { ...taskData, id: generateId(), createdAt: new Date().toISOString(), completedAt: null, isCompleted: false, xpValue, postponedCount: 0 };
-                set((state) => ({ tasks: [...state.tasks, newTask] }));
+
+                set((state) => {
+                    const newTasks = [...state.tasks, newTask];
+                    const user = state.user;
+                    if (user) {
+                        // Fire-and-forget sync
+                        updateDoc(doc(db, 'users', user.uid), { tasks: newTasks }).catch(console.error);
+                    }
+                    return { tasks: newTasks };
+                });
             },
 
-            updateTask: (id, updates) => set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)) })),
-            deleteTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+            updateTask: (id, updates) => set((state) => {
+                const newTasks = state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t));
+                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
+                return { tasks: newTasks };
+            }),
+
+            deleteTask: (id) => set((state) => {
+                const newTasks = state.tasks.filter((t) => t.id !== id);
+                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
+                return { tasks: newTasks };
+            }),
 
             toggleTask: (id) => {
                 const state = get();
                 const task = state.tasks.find((t) => t.id === id);
                 if (!task) return;
+
+                // Optimistic Update
                 const isCompleting = !task.isCompleted;
                 const now = new Date();
                 const today = format(now, 'yyyy-MM-dd');
@@ -143,7 +226,6 @@ export const useStore = create<AppState>()(
                     celebXP = task.xpValue;
                     while (p.xp >= p.xpToNextLevel) { p.xp -= p.xpToNextLevel; p.level += 1; p.xpToNextLevel = Math.round(XP_PER_LEVEL * Math.pow(1.15, p.level - 1)); }
 
-                    // Level up notification
                     if (p.level > prevLevel) {
                         newNotifications.push({ type: 'level', title: 'Level Up!', message: `You've reached Level ${p.level}! 🎉`, icon: '🆙' });
                     }
@@ -151,11 +233,14 @@ export const useStore = create<AppState>()(
                     const lastActive = p.lastActiveDate;
                     if (lastActive !== today) {
                         const diff = differenceInDays(parseISO(today), parseISO(lastActive));
-                        p.currentStreak = diff === 1 ? p.currentStreak + 1 : 1;
+                        if (diff === 1) p.currentStreak += 1;
+                        else if (diff > 1) p.currentStreak = 1;
+                        // Else diff === 0, same day, do nothing
                     }
                     p.longestStreak = Math.max(p.longestStreak, p.currentStreak);
                     p.lastActiveDate = today;
 
+                    // Badge Logic (Simplified for brevity, kept same)
                     const badges = [...p.badges];
                     const unlock = (bid: string) => {
                         const b = badges.find((x) => x.id === bid);
@@ -174,23 +259,22 @@ export const useStore = create<AppState>()(
                     if (p.currentStreak >= 100) unlock('streak_100');
                     if (p.level >= 5) unlock('level_5');
                     if (p.level >= 10) unlock('level_10');
+
                     const horizons = new Set(state.tasks.filter((t) => t.isCompleted || t.id === id).map((t) => t.horizon));
                     if (horizons.size >= 3) unlock('all_horizons');
                     p.badges = badges;
 
+                    // Daily Challenge Logic
                     if (p.dailyChallenge && p.dailyChallenge.date === today && !p.dailyChallenge.isCompleted) {
                         const ch = { ...p.dailyChallenge };
-
-                        // Get all tasks completed today (including the one just completed)
                         const completedToday = state.tasks.filter(t =>
                             (t.isCompleted && t.id !== id && t.completedAt && isToday(parseISO(t.completedAt))) ||
-                            (t.id === id) // The current task is being completed
+                            (t.id === id)
                         );
-                        // Add the current task explicitly to the list for calculation if it wasn't already in valid state (it wasn't)
                         const allCompleted = [...completedToday.filter(t => t.id !== id), task];
-
                         let progress = 0;
 
+                        // Recalculate progress based on type
                         if (ch.title === 'Task Blitz' || ch.title === 'Marathoner') {
                             progress = allCompleted.length;
                         } else if (ch.title === 'Triple Threat') {
@@ -202,6 +286,7 @@ export const useStore = create<AppState>()(
                         } else if (ch.title === 'Category Master') {
                             progress = new Set(allCompleted.map(t => t.category).filter(Boolean)).size;
                         } else {
+                            // Default fallback
                             progress = allCompleted.length;
                         }
 
@@ -215,27 +300,47 @@ export const useStore = create<AppState>()(
                             p.dailyChallenge = ch;
                         }
                     }
+
                     showCeleb = p.preferences.celebrationsEnabled;
                     const hist = [...state.completionHistory];
                     const rec = hist.find((r) => r.date === today);
                     if (rec) { rec.completed += 1; rec.xpEarned += task.xpValue; }
                     else hist.push({ date: today, completed: 1, total: 1, xpEarned: task.xpValue });
 
-                    // Add XP notification
                     newNotifications.push({ type: 'xp', title: `+${task.xpValue} XP`, message: `"${task.title}" completed`, icon: '✨' });
 
-                    // Add all queued notifications
                     const notificationsToAdd = newNotifications.map(n => ({ ...n, id: generateId() }));
 
+                    const newTasks = state.tasks.map((t) => t.id === id ? { ...t, isCompleted: true, completedAt: now.toISOString() } : t);
+
                     set({
-                        tasks: state.tasks.map((t) => t.id === id ? { ...t, isCompleted: true, completedAt: now.toISOString() } : t),
+                        tasks: newTasks,
                         profile: p, showCelebration: showCeleb, lastCelebrationXP: celebXP, completionHistory: hist,
                         notifications: [...state.notifications, ...notificationsToAdd],
                     });
+
+                    if (state.user) {
+                        updateDoc(doc(db, 'users', state.user.uid), {
+                            tasks: newTasks,
+                            profile: p,
+                            completionHistory: hist
+                        }).catch(console.error);
+                    }
+
                 } else {
+                    // Undoing completion
                     p.xp = Math.max(0, p.xp - task.xpValue);
                     p.totalTasksCompleted = Math.max(0, p.totalTasksCompleted - 1);
-                    set({ tasks: state.tasks.map((t) => t.id === id ? { ...t, isCompleted: false, completedAt: null } : t), profile: p });
+                    const newTasks = state.tasks.map((t) => t.id === id ? { ...t, isCompleted: false, completedAt: null } : t);
+
+                    set({ tasks: newTasks, profile: p });
+
+                    if (state.user) {
+                        updateDoc(doc(db, 'users', state.user.uid), {
+                            tasks: newTasks,
+                            profile: p
+                        }).catch(console.error);
+                    }
                 }
             },
 

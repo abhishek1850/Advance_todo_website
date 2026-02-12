@@ -4,6 +4,7 @@ import { Sparkles, CheckCircle2, Zap } from 'lucide-react';
 import { useStore } from '../store';
 import TaskCard from '../components/TaskCard';
 import ProgressRing from '../components/ProgressRing';
+import { DailyMotivation, StreakMilestone, ProductivityTip } from '../components/MotivationEngine';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 // Animated counter hook
@@ -41,6 +42,8 @@ export default function Dashboard() {
     const animatedStreak = useAnimatedCounter(profile.currentStreak);
     const animatedLevel = useAnimatedCounter(profile.level);
 
+
+
     const getScoreClass = (score: number) => {
         if (score >= 80) return 'great';
         if (score >= 60) return 'good';
@@ -56,7 +59,11 @@ export default function Dashboard() {
     ];
 
     return (
-        <div className="page-content">
+        <div className="page-content" style={{ position: 'relative' }}>
+            {/* Motivational Widgets */}
+            <DailyMotivation />
+            <StreakMilestone />
+
             {/* Focus Card */}
             {focus ? (
                 <motion.div className="focus-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -68,7 +75,7 @@ export default function Dashboard() {
                         <span className={`task-tag energy-${focus.energyLevel}`}>{focus.energyLevel === 'low' ? '🔋' : focus.energyLevel === 'medium' ? '⚡' : '🔥'} {focus.energyLevel}</span>
                         <span className="task-tag xp">+{focus.xpValue} XP</span>
                     </div>
-                    <div className="focus-card-action">
+                    <div className="focus-card-action" style={{ display: 'flex', gap: 10 }}>
                         <button className="btn btn-primary" onClick={() => useStore.getState().toggleTask(focus.id)}>
                             <CheckCircle2 size={16} style={{ marginRight: 8 }} /> Complete Now
                         </button>
@@ -79,13 +86,14 @@ export default function Dashboard() {
                     <div className="focus-card-label"><Sparkles size={14} /> All Done!</div>
                     <div className="focus-card-title">🎉 You've completed all tasks for today!</div>
                     <div className="focus-card-desc">Great work! Take a well-deserved break or plan ahead for tomorrow.</div>
+
                 </motion.div>
             ) : (
                 <motion.div className="focus-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                    <div className="focus-card-label"><Sparkles size={14} /> Welcome to TaskFlow</div>
-                    <div className="focus-card-title">Your productivity journey starts here</div>
-                    <div className="focus-card-desc">Add your first task and unlock achievements, earn XP, and build powerful habits.</div>
-                    <div className="focus-card-action">
+                    <div className="focus-card-label"><Sparkles size={14} /> Welcome to Attackers Arena</div>
+                    <div className="focus-card-title">Your mission begins now</div>
+                    <div className="focus-card-desc">Add your first mission and unlock achievements, earn XP, and build unstoppable discipline.</div>
+                    <div className="focus-card-action" style={{ display: 'flex', gap: 10 }}>
                         <button className="btn btn-primary" onClick={() => openTaskModal()}>
                             <Zap size={16} style={{ marginRight: 8 }} /> Add Your First Task
                         </button>
@@ -112,7 +120,7 @@ export default function Dashboard() {
             </div>
 
             {/* Charts Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 32 }}>
+            <div className="charts-grid">
                 <motion.div className="chart-container" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
                     <div className="chart-title">Weekly Activity</div>
                     <ResponsiveContainer width="100%" height={200}>
@@ -181,6 +189,9 @@ export default function Dashboard() {
                     </div>
                 </motion.div>
             )}
+
+            {/* Productivity Tip */}
+            <ProductivityTip />
         </div>
     );
 }

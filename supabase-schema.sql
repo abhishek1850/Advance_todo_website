@@ -1,5 +1,5 @@
 -- ============================================
--- TaskFlow Database Schema for Supabase
+-- Attackers Arena Database Schema for Supabase
 -- Run this in Supabase SQL Editor (Dashboard → SQL Editor → New query)
 -- ============================================
 

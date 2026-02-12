@@ -72,6 +72,7 @@ export interface UserPreferences {
   soundEnabled: boolean;
   defaultHorizon: TaskHorizon;
   defaultPriority: TaskPriority;
+  accentColor?: string;
 }
 
 export interface CompletionRecord {
@@ -81,7 +82,16 @@ export interface CompletionRecord {
   xpEarned: number;
 }
 
-export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile';
+export interface AIChatMessage {
+  id: string;
+  userId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  suggestedTasks?: any[]; // Keep flexible for now or define strict type if needed
+}
+
+export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;

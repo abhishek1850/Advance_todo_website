@@ -15,8 +15,12 @@ import AnalyticsView from './views/AnalyticsView';
 import AchievementsView from './views/AchievementsView';
 import AuthPage from './views/AuthPage';
 import ProfileView from './views/ProfileView';
+import AssistantView from './views/AssistantView';
 import { auth } from './lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import FocusTimer from './components/FocusTimer';
+import { useSessionTimeout, getSmartGreeting } from './components/MotivationEngine';
+
 import type { ViewType } from './types';
 
 const VIEW_TITLES: Record<string, string> = {
@@ -27,6 +31,7 @@ const VIEW_TITLES: Record<string, string> = {
   analytics: 'Analytics',
   achievements: 'Achievements',
   profile: 'User Profile',
+  assistant: 'AI Coach',
 };
 
 const VIEW_KEYS: Record<string, ViewType> = {
@@ -37,27 +42,45 @@ const VIEW_KEYS: Record<string, ViewType> = {
   '5': 'analytics',
   '6': 'achievements',
   '7': 'profile',
+  '8': 'assistant',
 };
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return '☀️ Good morning';
-  if (hour < 17) return '🌤️ Good afternoon';
-  if (hour < 21) return '🌆 Good evening';
-  return '🌙 Good night';
-}
 
 function App() {
   const {
     user, setUser, authLoading, setAuthLoading,
-    currentView, setView, openTaskModal, showCelebration, lastCelebrationXP, dismissCelebration, isTaskModalOpen
+    currentView, setView, openTaskModal, showCelebration, lastCelebrationXP, dismissCelebration, isTaskModalOpen, profile,
+    checkDailyLogic
   } = useStore();
 
+  // Security: auto-logout after 30 minutes of inactivity
+  useSessionTimeout(30 * 60 * 1000);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      checkDailyLogic();
+    }
+  }, [user, checkDailyLogic]);
+
+  // Dynamic document title
+  useEffect(() => {
+    document.title = `${VIEW_TITLES[currentView] || 'Dashboard'} — Attackers Arena`;
+  }, [currentView]);
+
+  useEffect(() => {
+    if (profile?.preferences?.accentColor) {
+      document.documentElement.style.setProperty('--accent-primary', profile.preferences.accentColor);
+      // Optional: Add a lighter variant for hovers/backgrounds if needed, or rely on opacity
+      // For now, just setting the primary accent is enough to change the theme feel
+    }
+  }, [profile?.preferences?.accentColor]);
+
+  useEffect(() => {
+    // Firebase Auth State Listener
+    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
       setUser(user);
       setAuthLoading(false);
     });
+
     return () => unsubscribe();
   }, [setUser, setAuthLoading]);
 
@@ -112,6 +135,7 @@ function App() {
       case 'analytics': return <AnalyticsView />;
       case 'achievements': return <AchievementsView />;
       case 'profile': return <ProfileView />;
+      case 'assistant': return <AssistantView />;
       default: return <Dashboard />;
     }
   };
@@ -123,12 +147,13 @@ function App() {
         <header className="header">
           <div className="header-left">
             <div>
-              <p className="header-greeting">{getGreeting()}</p>
+              <p className="header-greeting">{getSmartGreeting(user?.displayName || (profile?.name !== 'User' ? profile?.name : '') || '')}</p>
               <h2 className="header-title">{VIEW_TITLES[currentView]}</h2>
               <p className="header-subtitle">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
             </div>
           </div>
           <div className="header-right">
+            <FocusTimer className="header-focus-timer" />
             <XPBar />
             <button className="add-task-btn" onClick={() => openTaskModal()}>
               <Plus size={18} /> New Task
@@ -149,6 +174,8 @@ function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+
 
       <TaskModal />
       <Confetti show={showCelebration} xp={lastCelebrationXP} onDone={handleCelebrationDone} />

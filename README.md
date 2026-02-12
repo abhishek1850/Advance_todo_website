@@ -1,73 +1,54 @@
-# React + TypeScript + Vite
+# ⚡ Attackers Arena
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **Execute Without Excuses.**
 
-Currently, two official plugins are available:
+The productivity battleground for disciplined Attackers who finish every mission on time.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🛡️ Features
 
-## React Compiler
+- **Mission-Based Task Management** — Daily, Monthly, and Yearly horizons
+- **AI Battle Coach** — Powered by Gemini, your personal strategist
+- **Gamification Engine** — XP, Levels, Streaks, Badges, Daily Challenges
+- **Analytics Dashboard** — Track your attack patterns and productivity scores
+- **Premium Dark UI** — Glassmorphism, smooth animations, built for warriors
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🚀 Tech Stack
 
-## Expanding the ESLint configuration
+- **Frontend:** React 19 + TypeScript + Vite
+- **Auth & Database:** Firebase (Auth + Firestore)
+- **AI:** Google Gemini API
+- **Animations:** Framer Motion
+- **State:** Zustand with persistence
+- **Charts:** Recharts
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## ⚙️ Setup
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. Clone the repo
+2. Copy `.env.example` to `.env` and fill in your keys
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+4. Run the dev server:
+   ```bash
+   npm run dev
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🔒 Security
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- All API keys stored in environment variables
+- Firebase Auth with password strength enforcement
+- Firestore Row-Level Security rules
+- Content Security Policy headers
+- Rate-limited AI requests
+- Auto session timeout after 30 min
+
+## 📱 Deploy
+
+```bash
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+**Built with rage. Shipped with discipline.** ⚡🛡️

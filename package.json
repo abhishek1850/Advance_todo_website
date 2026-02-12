@@ -13,7 +13,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.95.3",
+    "@google/generative-ai": "^0.24.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.9.0",
     "framer-motion": "^12.34.0",
