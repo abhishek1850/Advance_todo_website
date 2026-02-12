@@ -1,22 +1,24 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { useStore } from './store';
 import Sidebar from './components/Sidebar';
 import XPBar from './components/XPBar';
 import TaskModal from './components/TaskModal';
 import Confetti from './components/Confetti';
 import NotificationToast from './components/NotificationToast';
-import Dashboard from './views/Dashboard';
-import TodayView from './views/TodayView';
-import MonthlyView from './views/MonthlyView';
-import YearlyView from './views/YearlyView';
-import AnalyticsView from './views/AnalyticsView';
-import AchievementsView from './views/AchievementsView';
-import AuthPage from './views/AuthPage';
-import VerificationPending from './views/VerificationPending';
-import ProfileView from './views/ProfileView';
-import AssistantView from './views/AssistantView';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Lazy Load Views for Performance
+const Dashboard = lazy(() => import('./views/Dashboard'));
+const TodayView = lazy(() => import('./views/TodayView'));
+const MonthlyView = lazy(() => import('./views/MonthlyView'));
+const YearlyView = lazy(() => import('./views/YearlyView'));
+const AnalyticsView = lazy(() => import('./views/AnalyticsView'));
+const AchievementsView = lazy(() => import('./views/AchievementsView'));
+const AuthPage = lazy(() => import('./views/AuthPage'));
+const ProfileView = lazy(() => import('./views/ProfileView'));
+const AssistantView = lazy(() => import('./views/AssistantView'));
 
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -126,11 +128,11 @@ function App() {
 
 
   if (!user) {
-    return <AuthPage />;
-  }
-
-  if (!user.emailVerified) {
-    return <VerificationPending />;
+    return (
+      <Suspense fallback={<div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>Loading...</div>}>
+        <AuthPage />
+      </Suspense>
+    );
   }
 
 
@@ -179,7 +181,15 @@ function App() {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
           >
-            {renderView()}
+            <ErrorBoundary>
+              <Suspense fallback={
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-tertiary)' }}>
+                  <Loader2 size={32} className="animate-spin" />
+                </div>
+              }>
+                {renderView()}
+              </Suspense>
+            </ErrorBoundary>
           </motion.div>
         </AnimatePresence>
       </main>

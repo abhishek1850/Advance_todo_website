@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut } from 'lucide-react';
+import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut, Download } from 'lucide-react';
+import { usePWA } from '../hooks/usePWA';
 import { useStore } from '../store';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -21,6 +22,7 @@ const navItems: { id: ViewType; label: string; icon: React.ReactNode; shortcut: 
 
 export default function Sidebar() {
     const { currentView, setView, profile, getTodaysTasks } = useStore();
+    const { isInstallable, installApp } = usePWA();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -260,26 +262,56 @@ export default function Sidebar() {
                     </div>
                 </div>
 
-                <button
-                    onClick={() => {
-                        playSound('click');
-                        setShowLogoutConfirm(true);
-                    }}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '12px 16px', margin: '16px 20px',
-                        background: 'rgba(255, 82, 82, 0.1)', border: '1px solid rgba(255, 82, 82, 0.15)',
-                        borderRadius: 12, color: '#ff5252',
-                        cursor: 'pointer', fontSize: 14, fontWeight: 500,
-                        transition: 'all 0.2s',
-                        width: 'calc(100% - 40px)'
-                    }}
-                    onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.2)'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.1)'; }}
-                >
-                    <LogOut size={18} />
-                    <span>Sign Out</span>
-                </button>
+                <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Install App Button */}
+                    <motion.button
+                        className="install-btn"
+                        onClick={() => {
+                            playSound('click');
+                            if (isInstallable) {
+                                installApp();
+                            } else {
+                                alert("App installation is not available. You may already have the app installed or your browser doesn't support this feature.");
+                            }
+                        }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '12px 16px', margin: '0 20px',
+                            background: isInstallable ? 'rgba(108, 92, 231, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                            border: isInstallable ? '1px solid rgba(108, 92, 231, 0.15)' : '1px solid rgba(255, 255, 255, 0.05)',
+                            borderRadius: 12, color: isInstallable ? '#6C5CE7' : 'var(--text-tertiary)',
+                            cursor: 'pointer', fontSize: 14, fontWeight: 500,
+                            transition: 'all 0.2s',
+                            width: 'calc(100% - 40px)'
+                        }}
+                        whileHover={{ scale: 1.02, backgroundColor: isInstallable ? 'rgba(108, 92, 231, 0.2)' : 'rgba(255, 255, 255, 0.1)' }}
+                        whileTap={{ scale: 0.98 }}
+                    >
+                        <Download size={18} />
+                        <span>Install App</span>
+                    </motion.button>
+
+                    <button
+                        onClick={() => {
+                            playSound('click');
+                            setShowLogoutConfirm(true);
+                        }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '12px 16px', margin: '0 20px 24px',
+                            background: 'rgba(255, 82, 82, 0.1)', border: '1px solid rgba(255, 82, 82, 0.15)',
+                            borderRadius: 12, color: '#ff5252',
+                            cursor: 'pointer', fontSize: 14, fontWeight: 500,
+                            transition: 'all 0.2s',
+                            width: 'calc(100% - 40px)'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.2)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 82, 82, 0.1)'; }}
+                    >
+                        <LogOut size={18} />
+                        <span>Sign Out</span>
+                    </button>
+                </div>
             </motion.aside >
 
             {/* Backdrop for mobile */}
@@ -316,3 +348,4 @@ export default function Sidebar() {
         </>
     );
 }
+

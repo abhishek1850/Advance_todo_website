@@ -24,12 +24,12 @@ export default function TodayView() {
 
     return (
         <div className="page-content">
-            <div className="mobile-header-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
-                <div>
-                    <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Today's Tasks</h2>
-                    <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>{incomplete.length} remaining • {completed.length} completed</p>
+            <div className="view-header">
+                <div className="view-header-content">
+                    <h2 className="view-title">Today's Tasks</h2>
+                    <p className="view-subtitle">{incomplete.length} remaining • {completed.length} completed</p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div className="view-header-actions">
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <ProgressRing progress={rate} size={80} strokeWidth={6} />
                     </div>

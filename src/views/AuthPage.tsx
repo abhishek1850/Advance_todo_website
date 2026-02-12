@@ -7,9 +7,11 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     updateProfile,
-    sendEmailVerification,
+    signOut,
     sendPasswordResetEmail
 } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { useStore } from '../store';
 
 type AuthMode = 'signin' | 'signup' | 'forgot-password';
@@ -19,6 +21,7 @@ export default function AuthPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
+    const [username, setUsername] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -30,7 +33,46 @@ export default function AuthPage() {
         setError('');
         try {
             const result = await signInWithPopup(auth, googleProvider);
-            setUser(result.user);
+            const user = result.user;
+
+            // Allow Google Auth logic:
+            // Check if user doc exists
+            const docRef = doc(db, 'users', user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                // First time Google login -> Auto-create account
+                const generatedUsername = user.email ? user.email.split('@')[0] : `user_${user.uid.slice(0, 8)}`;
+
+                // Construct new user profile
+                const newUserProfile = {
+                    name: user.displayName || 'User',
+                    username: generatedUsername,
+                    level: 1, xp: 0, xpToNextLevel: 500,
+                    totalTasksCompleted: 0, currentStreak: 0, longestStreak: 0,
+                    lastActiveDate: new Date().toISOString().split('T')[0],
+                    joinedDate: new Date().toISOString(),
+                    badges: [],
+                    dailyChallenge: null,
+                    preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium', accentColor: '#7c6cf0', autoRollover: true, rolloverMultiplier: true },
+                    onboardingComplete: true
+                };
+
+                await setDoc(docRef, {
+                    uid: user.uid,
+                    email: user.email,
+                    name: user.displayName || 'User',
+                    photoURL: user.photoURL,
+                    username: generatedUsername,
+                    createdAt: new Date().toISOString(),
+                    onboardingComplete: true, // Auto-onboarded
+                    profile: newUserProfile,
+                    tasks: [],
+                    completionHistory: []
+                });
+            }
+
+            setUser(user);
         } catch (err: any) {
             console.error(err);
             if (err.code === 'auth/popup-closed-by-user') {
@@ -52,15 +94,57 @@ export default function AuthPage() {
         try {
             if (mode === 'signup') {
                 // Sign Up Logic
+                // 1. Create Auth User
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                await updateProfile(userCredential.user, { displayName: name });
-                await sendEmailVerification(userCredential.user);
+                const user = userCredential.user;
 
-                // Triggers App flow -> VerificationPending
-                setUser(userCredential.user);
+                // 2. Update Profile
+                await updateProfile(user, { displayName: name });
+                // Note: Email verification removed per new flow (or optional), keeping it simple.
+
+                // 3. Create Firestore Document IMMEDIATELY
+                const newUserProfile = {
+                    name: name,
+                    username: username, // From form
+                    level: 1, xp: 0, xpToNextLevel: 500,
+                    totalTasksCompleted: 0, currentStreak: 0, longestStreak: 0,
+                    lastActiveDate: new Date().toISOString().split('T')[0],
+                    joinedDate: new Date().toISOString(),
+                    badges: [],
+                    dailyChallenge: null,
+                    preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium', accentColor: '#7c6cf0', autoRollover: true, rolloverMultiplier: true },
+                    onboardingComplete: true
+                };
+
+                await setDoc(doc(db, 'users', user.uid), {
+                    uid: user.uid,
+                    email: user.email,
+                    name: name,
+                    photoURL: user.photoURL,
+                    username: username,
+                    createdAt: new Date().toISOString(),
+                    onboardingComplete: true,
+                    profile: newUserProfile,
+                    tasks: [],
+                    completionHistory: []
+                });
+
+                setUser(user);
             } else if (mode === 'signin') {
                 // Sign In Logic
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+                // CHECK if user document exists
+                const docRef = doc(db, 'users', userCredential.user.uid);
+                const docSnap = await getDoc(docRef);
+
+                if (!docSnap.exists()) {
+                    // Fail: Account (Firestore doc) does not exist
+                    await signOut(auth);
+                    setError("Account does not exist. Please sign up first.");
+                    return;
+                }
+
                 setUser(userCredential.user);
             } else if (mode === 'forgot-password') {
                 // Reset Password Logic
@@ -196,6 +280,20 @@ export default function AuthPage() {
                                                 placeholder="Full Name"
                                                 value={name}
                                                 onChange={e => setName(e.target.value)}
+                                                required={mode === 'signup'}
+                                                style={{ paddingLeft: 42, width: '100%' }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="form-group" style={{ marginBottom: 16 }}>
+                                        <div style={{ position: 'relative' }}>
+                                            <span style={{ position: 'absolute', top: 12, left: 14, color: 'var(--text-tertiary)', fontWeight: 'bold' }}>@</span>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                placeholder="Username"
+                                                value={username}
+                                                onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                                                 required={mode === 'signup'}
                                                 style={{ paddingLeft: 42, width: '100%' }}
                                             />

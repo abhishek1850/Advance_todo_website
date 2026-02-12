@@ -18,15 +18,15 @@ export default function MonthlyView() {
 
     return (
         <div className="page-content">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
-                <div>
-                    <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>
-                        <Calendar size={28} style={{ marginRight: 8, verticalAlign: 'middle', color: 'var(--accent-secondary)' }} />
+            <div className="view-header">
+                <div className="view-header-content">
+                    <h2 className="view-title">
+                        <Calendar size={28} style={{ marginRight: 8, color: 'var(--accent-secondary)' }} />
                         {monthName}
                     </h2>
-                    <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>{incomplete.length} remaining • {completed.length} completed</p>
+                    <p className="view-subtitle">{incomplete.length} remaining • {completed.length} completed</p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div className="view-header-actions">
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <ProgressRing progress={rate} size={80} strokeWidth={6} color="#00cec9" />
                     </div>

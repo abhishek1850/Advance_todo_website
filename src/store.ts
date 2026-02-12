@@ -62,9 +62,11 @@ interface AppState {
     isTaskModalOpen: boolean;
     editingTask: Task | null;
     notifications: Notification[];
+    onboardingComplete: boolean;
     setUser: (user: User | null) => void;
     setAuthLoading: (loading: boolean) => void;
-    setView: (view: ViewType) => void;
+    setView: (view: ViewType | 'complete-signup') => void;
+    completeOnboarding: (data: { username: string; name: string }) => Promise<void>;
     setFilter: (filter: TaskFilter) => void;
     addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'isCompleted' | 'xpValue' | 'postponedCount'>) => void;
     updateTask: (id: string, updates: Partial<Task>) => void;
@@ -92,78 +94,118 @@ interface AppState {
     getProductivityScore: () => number;
 }
 
+const INITIAL_PROFILE: UserProfile = {
+    name: 'User', level: 1, xp: 0, xpToNextLevel: XP_PER_LEVEL,
+    totalTasksCompleted: 0, currentStreak: 0, longestStreak: 0,
+    lastActiveDate: format(new Date(), 'yyyy-MM-dd'),
+    joinedDate: format(new Date(), 'yyyy-MM-dd'),
+    badges: [...DEFAULT_BADGES],
+    dailyChallenge: genDailyChallenge(),
+    preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium', accentColor: '#7c6cf0', autoRollover: true, rolloverMultiplier: true },
+    onboardingComplete: false,
+};
+
+const INITIAL_STATE = {
+    tasks: [],
+    profile: INITIAL_PROFILE,
+    completionHistory: [],
+    notifications: [],
+    showCelebration: false,
+    lastCelebrationXP: 0,
+    isTaskModalOpen: false,
+    editingTask: null,
+    onboardingComplete: false,
+    filter: {},
+    currentView: 'dashboard' as ViewType,
+};
+
 export const useStore = create<AppState>()(
     persist(
         (set, get) => ({
             user: null,
             authLoading: true,
-            tasks: [],
-            profile: {
-                name: 'User', level: 1, xp: 0, xpToNextLevel: XP_PER_LEVEL,
-                totalTasksCompleted: 0, currentStreak: 0, longestStreak: 0,
-                lastActiveDate: format(new Date(), 'yyyy-MM-dd'),
-                joinedDate: format(new Date(), 'yyyy-MM-dd'),
-                badges: [...DEFAULT_BADGES],
-                dailyChallenge: genDailyChallenge(),
-                preferences: { theme: 'dark', celebrationsEnabled: true, soundEnabled: true, defaultHorizon: 'daily', defaultPriority: 'medium', accentColor: '#7c6cf0', autoRollover: true, rolloverMultiplier: true },
-            },
-            currentView: 'dashboard',
-            filter: {},
-            completionHistory: [],
-            showCelebration: false,
-            lastCelebrationXP: 0,
-            isTaskModalOpen: false,
-            editingTask: null,
-            notifications: [],
+            ...INITIAL_STATE,
 
             setUser: async (user) => {
-                set({ user });
-                if (user) {
-                    // Start loading
-                    set({ authLoading: true });
+                if (!user) {
+                    console.log('🔒 Logout: Clearing user state and storage.');
+                    set({ user: null, ...INITIAL_STATE, authLoading: false });
+                    localStorage.removeItem('todo-app-storage'); // Hard clear
+                    return;
+                }
 
-                    // Check verification
-                    if (!user.emailVerified) {
-                        set({ authLoading: false });
-                        return;
-                    }
+                console.log('🔐 Auth State Changed. New User:', user.uid);
 
-                    try {
-                        const docRef = doc(db, 'users', user.uid);
-                        const docSnap = await getDoc(docRef);
+                // 1. CLEAR STATE IMMEDIATELY to prevent data leak from previous user
+                set({ user, ...INITIAL_STATE, authLoading: true });
 
-                        if (docSnap.exists()) {
-                            const data = docSnap.data();
-                            set({
-                                tasks: data.tasks || [],
-                                profile: { ...get().profile, ...data.profile },
-                                completionHistory: data.completionHistory || [],
-                                authLoading: false
-                            });
-                        } else {
-                            const state = get();
-                            await setDoc(docRef, {
-                                uid: user.uid,
-                                name: user.displayName || 'Anonymous',
-                                email: user.email,
-                                photoURL: user.photoURL,
-                                createdAt: new Date().toISOString(),
-                                tasks: state.tasks,
-                                profile: {
-                                    ...state.profile,
-                                    name: user.displayName || state.profile.name
-                                },
-                                completionHistory: state.completionHistory,
-                            });
-                            set({ authLoading: false });
+                try {
+                    // 2. Fetch User Data
+                    const docRef = doc(db, 'users', user.uid);
+                    console.log(`📡 Fetching profile for: ${user.uid}`);
+
+                    const docSnap = await getDoc(docRef);
+
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+
+                        // 3. Verify Ownership / Data Integrity (Extra check)
+                        if (data.uid && data.uid !== user.uid) {
+                            console.error('⛔ SECURITY ALERT: Fetched document ID does not match Auth UID!');
+                            throw new Error('Security Mismatch');
                         }
-                    } catch (error) {
-                        console.warn("Error loading user data:", error);
-                        set({ authLoading: false });
+
+                        console.log('✅ User profile loaded successfully.');
+                        set({
+                            tasks: data.tasks || [],
+                            profile: { ...get().profile, ...data.profile, onboardingComplete: true },
+                            onboardingComplete: true,
+                            completionHistory: data.completionHistory || [],
+                        });
+                    } else {
+                        console.warn(`⚠️ No profile found for ${user.uid}. Waiting for creation...`);
+                        // Do not reset to false here, rely on Initial State or AuthPage creation
                     }
-                } else {
+                } catch (error) {
+                    console.error("❌ Error loading user data:", error);
+                    // On error, maybe force logout?
+                } finally {
                     set({ authLoading: false });
                 }
+            },
+
+            completeOnboarding: async ({ username, name }) => {
+                const state = get();
+                const user = state.user;
+                if (!user) return;
+
+                const newUserProfile: UserProfile = {
+                    ...state.profile,
+                    name,
+                    username,
+                    onboardingComplete: true,
+                    joinedDate: new Date().toISOString()
+                };
+
+                const userDoc = {
+                    uid: user.uid,
+                    email: user.email,
+                    name: name,
+                    photoURL: user.photoURL,
+                    username: username,
+                    createdAt: new Date().toISOString(),
+                    onboardingComplete: true,
+                    profile: newUserProfile,
+                    tasks: state.tasks,
+                    completionHistory: state.completionHistory
+                };
+
+                await setDoc(doc(db, 'users', user.uid), userDoc);
+                set({
+                    profile: newUserProfile,
+                    onboardingComplete: true,
+                    currentView: 'dashboard'
+                });
             },
             setAuthLoading: (loading) => set({ authLoading: loading }),
             pendingAssistantMessage: undefined,
@@ -225,15 +267,24 @@ export const useStore = create<AppState>()(
             setFilter: (filter) => set({ filter }),
 
             addTask: async (taskData) => {
+                const state = get();
                 const xpValue = Math.round(PRIORITY_XP[taskData.priority] * HORIZON_MULT[taskData.horizon]);
-                const newTask: Task = { ...taskData, id: generateId(), createdAt: new Date().toISOString(), completedAt: null, isCompleted: false, xpValue, postponedCount: 0 };
+                const newTask: Task = {
+                    ...taskData,
+                    id: generateId(),
+                    userId: state.user?.uid, // Strict Data Ownership
+                    createdAt: new Date().toISOString(),
+                    completedAt: null,
+                    isCompleted: false,
+                    xpValue,
+                    postponedCount: 0
+                };
 
-                set((state) => {
-                    const newTasks = [...state.tasks, newTask];
-                    const user = state.user;
-                    if (user) {
+                set((s) => {
+                    const newTasks = [...s.tasks, newTask];
+                    if (s.user) {
                         // Fire-and-forget sync
-                        updateDoc(doc(db, 'users', user.uid), { tasks: newTasks }).catch(console.error);
+                        updateDoc(doc(db, 'users', s.user.uid), { tasks: newTasks }).catch(console.error);
                     }
                     return { tasks: newTasks };
                 });

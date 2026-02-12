@@ -31,6 +31,7 @@ export default function ProfileView() {
     const [message, setMessage] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [imgError, setImgError] = useState(false);
     const [quote] = useState(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
 
     useEffect(() => {
@@ -167,8 +168,13 @@ export default function ProfileView() {
                                     border: '4px solid rgba(255,255,255,0.1)',
                                     overflow: 'hidden'
                                 }}>
-                                    {user.photoURL ? (
-                                        <img src={user.photoURL} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    {user.photoURL && !imgError ? (
+                                        <img
+                                            src={user.photoURL}
+                                            alt="Profile"
+                                            onError={() => setImgError(true)}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
                                     ) : (
                                         (name?.[0] || 'U').toUpperCase()
                                     )}
@@ -178,6 +184,7 @@ export default function ProfileView() {
 
                             <div style={{ marginTop: 16, textAlign: 'center' }}>
                                 <div style={{ fontSize: 18, fontWeight: 700 }}>{name}</div>
+                                {profile.username && <div style={{ fontSize: 13, color: 'var(--accent-primary)', fontWeight: 600 }}>@{profile.username}</div>}
                                 <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{user.email}</div>
                             </div>
 

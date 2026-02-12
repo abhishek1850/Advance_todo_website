@@ -5,6 +5,7 @@ export type RecurrencePattern = 'none' | 'daily' | 'weekdays' | 'weekly' | 'biwe
 
 export interface Task {
   id: string;
+  userId?: string;
   title: string;
   description: string;
   horizon: TaskHorizon;
@@ -69,6 +70,8 @@ export interface UserProfile {
   badges: Badge[];
   dailyChallenge: DailyChallenge | null;
   preferences: UserPreferences;
+  onboardingComplete: boolean;
+  username?: string;
 }
 
 export interface UserPreferences {
@@ -98,7 +101,7 @@ export interface AIChatMessage {
   suggestedTasks?: any[]; // Keep flexible for now or define strict type if needed
 }
 
-export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant';
+export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;
