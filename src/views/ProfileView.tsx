@@ -157,15 +157,7 @@ export default function ProfileView() {
                             position: 'relative', minWidth: 260, flex: '1 1 260px'
                         }}>
                             <div style={{ position: 'relative' }}>
-                                <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                                    style={{
-                                        position: 'absolute', inset: -4, borderRadius: '50%',
-                                        background: 'conic-gradient(var(--accent-primary), var(--accent-secondary), var(--accent-tertiary), var(--accent-primary))',
-                                        filter: 'blur(10px)', opacity: 0.5
-                                    }}
-                                />
+
                                 <div style={{
                                     width: 100, height: 100, borderRadius: '50%',
                                     background: 'var(--bg-secondary)',
@@ -181,13 +173,7 @@ export default function ProfileView() {
                                         (name?.[0] || 'U').toUpperCase()
                                     )}
                                 </div>
-                                <div style={{
-                                    position: 'absolute', bottom: 0, right: 0, zIndex: 2,
-                                    background: 'var(--gradient-primary)', borderRadius: '50%', padding: 6,
-                                    boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-                                }}>
-                                    <Sparkles size={14} color="white" fill="white" />
-                                </div>
+
                             </div>
 
                             <div style={{ marginTop: 16, textAlign: 'center' }}>
