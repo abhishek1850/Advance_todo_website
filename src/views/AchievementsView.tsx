@@ -2,13 +2,19 @@ import { useStore } from '../store';
 import { motion } from 'framer-motion';
 import { Trophy, Lock, Medal } from 'lucide-react';
 import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
 
 export default function AchievementsView() {
     const { profile } = useStore();
     const { badges, level, xp, xpToNextLevel } = profile;
     const progress = Math.min(100, (xp / xpToNextLevel) * 100);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     return (
         <div className="page-content" style={{ maxWidth: 800, margin: '0 auto', paddingBottom: 80 }}>
@@ -17,26 +23,34 @@ export default function AchievementsView() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 style={{
-                    display: 'flex', alignItems: 'center', gap: 24, marginBottom: 40,
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    alignItems: isMobile ? 'center' : 'center',
+                    gap: isMobile ? 16 : 24,
+                    marginBottom: 40,
                     background: 'linear-gradient(135deg, rgba(124, 108, 240, 0.1) 0%, rgba(124, 108, 240, 0.02) 100%)',
-                    padding: 32, borderRadius: 24, border: '1px solid rgba(124, 108, 240, 0.2)'
+                    padding: isMobile ? 20 : 32,
+                    borderRadius: 24,
+                    border: '1px solid rgba(124, 108, 240, 0.2)',
+                    textAlign: isMobile ? 'center' : 'left'
                 }}
             >
                 <div style={{ position: 'relative' }}>
                     <div style={{
-                        width: 100, height: 100, borderRadius: '50%',
+                        width: isMobile ? 80 : 100, height: isMobile ? 80 : 100,
+                        borderRadius: '50%',
                         background: 'var(--accent-primary)', display: 'flex', flexDirection: 'column',
                         alignItems: 'center', justifyContent: 'center', color: 'white',
                         boxShadow: '0 0 30px rgba(124, 108, 240, 0.4)'
                     }}>
-                        <span style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{level}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.9 }}>LEVEL</span>
+                        <span style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, lineHeight: 1 }}>{level}</span>
+                        <span style={{ fontSize: isMobile ? 10 : 12, fontWeight: 600, opacity: 0.9 }}>LEVEL</span>
                     </div>
                 </div>
 
-                <div style={{ flex: 1 }}>
-                    <h1 style={{ margin: 0, fontSize: 24, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <Trophy className="text-accent" /> Achievement Hall
+                <div style={{ flex: 1, width: '100%' }}>
+                    <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 24, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: 12 }}>
+                        <Trophy className="text-accent" size={isMobile ? 20 : 24} /> Achievement Hall
                     </h1>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
                         <span>Current XP: {xp}</span>

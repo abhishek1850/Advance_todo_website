@@ -2509,12 +2509,12 @@ body::before {
   }
 
   .header-title {
-    font-size: 18px;
+    font-size: 16px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: none;
-    /* Hide top title on mobile to reduce crowding */
+    /* Show truncated title instead of hiding */
+    display: block;
   }
 
   .header-subtitle {
@@ -2522,7 +2522,7 @@ body::before {
   }
 
   .header-greeting {
-    font-size: 12px;
+    font-size: 11px;
     margin-bottom: 0;
   }
 
@@ -2571,29 +2571,43 @@ body::before {
   }
 
   .page-content {
-    padding: 20px 16px;
+    padding: 16px 12px;
   }
 
-  /* Stack view headers */
-  .mobile-header-stack {
-    flex-direction: column !important;
+  /* Dashboard specific mobile fixes */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
     gap: 16px;
-    align-items: flex-start !important;
   }
 
-  .mobile-header-stack>div:last-child {
-    width: 100%;
-    justify-content: space-between;
-    margin-top: 8px;
+  .stat-card {
+    padding: 16px;
   }
 
-  .task-list-header {
-    margin-top: 16px;
+  .stat-card-value {
+    font-size: 24px;
+  }
+
+  .focus-card {
+    padding: 20px;
+  }
+
+  .focus-card-title {
+    font-size: 20px;
   }
 
   /* Task List items */
   .task-card {
     padding: 12px;
+  }
+
+  .task-meta {
+    gap: 4px;
   }
 
   .filter-bar {
@@ -2611,8 +2625,35 @@ body::before {
   }
 
   .modal {
-    width: 90%;
-    margin: 20px;
-    max-height: 80vh;
+    width: 95%;
+    margin: 10px;
+    max-height: 90vh;
+    border-radius: var(--radius-lg);
+  }
+
+  .modal-form {
+    padding: 16px;
+    gap: 16px;
+  }
+}
+
+/* Specific fix for very small screens (phones) */
+@media (max-width: 480px) {
+  .header-title {
+    font-size: 14px;
+  }
+
+  .badge-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  .coach-insight-card {
+    padding: 16px;
+  }
+
+  .insight-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 }
