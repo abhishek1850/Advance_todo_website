@@ -275,18 +275,22 @@ export default function Sidebar() {
                                 } else if (isIOS) {
                                     alert("To install on iOS:\n1. Tap the 'Share' button\n2. Scroll down and tap 'Add to Home Screen'");
                                 } else {
-                                    alert("To install the app:\nLook for 'Add to Home Screen' or 'Install App' in your browser menu.");
+                                    // If clicked but not ready, show a helpful toast/alert instead of generic error
+                                    alert("App isn't ready for one-click install yet.\n\nTry reloading the page, or use your browser menu to 'Add to Home Screen'.");
                                 }
-                            }}
+                            }
+                            }
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 12,
                                 padding: '12px 16px', margin: '0 20px',
-                                background: 'rgba(108, 92, 231, 0.1)',
-                                border: '1px solid rgba(108, 92, 231, 0.15)',
-                                borderRadius: 12, color: '#6C5CE7',
+                                background: isInstallable ? 'rgba(108, 92, 231, 0.2)' : 'rgba(108, 92, 231, 0.05)',
+                                border: isInstallable ? '1px solid #6C5CE7' : '1px solid rgba(108, 92, 231, 0.1)',
+                                borderRadius: 12,
+                                color: isInstallable ? '#fff' : '#6C5CE7',
                                 cursor: 'pointer', fontSize: 14, fontWeight: 500,
                                 transition: 'all 0.2s',
-                                width: 'calc(100% - 40px)'
+                                width: 'calc(100% - 40px)',
+                                boxShadow: isInstallable ? '0 0 10px rgba(108, 92, 231, 0.3)' : 'none'
                             }}
                             whileHover={{ scale: 1.02, backgroundColor: 'rgba(108, 92, 231, 0.2)' }}
                             whileTap={{ scale: 0.98 }}
