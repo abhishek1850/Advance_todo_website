@@ -165,12 +165,30 @@ export default function Sidebar() {
                                 90% { filter: drop-shadow(0 0 4px #00d4ff); opacity: 0.7; }
                                 92% { filter: drop-shadow(0 0 15px #ffffff) brightness(1.2); opacity: 1; }
                             }
+                            @keyframes fastSpin {
+                                0% { transform: rotate(0deg); }
+                                100% { transform: rotate(360deg); }
+                            }
+                            @keyframes electricIntense {
+                                0%, 100% { filter: drop-shadow(0 0 5px #00d4ff) brightness(1.2); opacity: 1; transform: scale(1.1); }
+                                25% { filter: drop-shadow(0 0 20px #ffffff) brightness(2); transform: scale(1.05) translateX(-2px); }
+                                50% { filter: drop-shadow(0 0 8px #00d4ff); opacity: 0.8; transform: scale(1.15) translateY(2px); }
+                                75% { filter: drop-shadow(0 0 25px #ffffff) brightness(2.5); transform: scale(1.08) translateX(2px); }
+                            }
+
                             .aa-inner-light {
                                 animation: aaLight 3s ease-in-out infinite;
                             }
                             .aa-bolt {
                                 animation: electric 3s infinite linear;
                                 transform-origin: center;
+                            }
+                            
+                            .sidebar-logo:hover .sidebar-logo-icon svg {
+                                animation: fastSpin 0.4s linear infinite;
+                            }
+                            .sidebar-logo:hover .aa-bolt {
+                                animation: electricIntense 0.08s infinite !important;
                             }
                         `}</style>
                     </motion.div>
