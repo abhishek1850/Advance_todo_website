@@ -146,6 +146,12 @@ export default function Sidebar() {
                                 </g>
                                 {/* Bolt highlight */}
                                 <path d="M290 105 L215 240 L260 240 L210 390" fill="none" stroke="white" strokeWidth="2" strokeOpacity="0.25" strokeLinecap="round" />
+                                {/* Electric Rings (Visible on Hover) */}
+                                <g className="aa-spinner-group" style={{ transformOrigin: '256px 256px' }}>
+                                    <circle cx="256" cy="256" r="230" fill="none" stroke="url(#sb)" strokeWidth="4" strokeDasharray="20 60 40 40" strokeLinecap="round" className="aa-ring-1" style={{ opacity: 0 }} />
+                                    <circle cx="256" cy="256" r="215" fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="50 100" strokeLinecap="round" className="aa-ring-2" style={{ opacity: 0 }} />
+                                    <circle cx="256" cy="256" r="245" fill="none" stroke="url(#se)" strokeWidth="6" strokeDasharray="10 80 5 40" strokeLinecap="round" className="aa-ring-3" style={{ opacity: 0 }} />
+                                </g>
                             </svg>
                         </div>
                         <style>{`
@@ -165,9 +171,13 @@ export default function Sidebar() {
                                 90% { filter: drop-shadow(0 0 4px #00d4ff); opacity: 0.7; }
                                 92% { filter: drop-shadow(0 0 15px #ffffff) brightness(1.2); opacity: 1; }
                             }
-                            @keyframes fastSpin {
+                            @keyframes ringSpin {
                                 0% { transform: rotate(0deg); }
                                 100% { transform: rotate(360deg); }
+                            }
+                            @keyframes ringSpinRev {
+                                0% { transform: rotate(360deg); }
+                                100% { transform: rotate(0deg); }
                             }
                             @keyframes electricIntense {
                                 0%, 100% { filter: drop-shadow(0 0 5px #00d4ff) brightness(1.2); opacity: 1; transform: scale(1.1); }
@@ -184,11 +194,28 @@ export default function Sidebar() {
                                 transform-origin: center;
                             }
                             
-                            .sidebar-logo:hover .sidebar-logo-icon svg {
-                                animation: fastSpin 0.4s linear infinite;
+                            /* Hover effects */
+                            .sidebar-logo:hover .aa-ring-1 {
+                                opacity: 1 !important;
+                                animation: ringSpin 1s linear infinite;
+                                filter: drop-shadow(0 0 8px #00d4ff);
+                            }
+                            .sidebar-logo:hover .aa-ring-2 {
+                                opacity: 0.8 !important;
+                                animation: ringSpinRev 0.6s linear infinite;
+                                filter: drop-shadow(0 0 5px #ffffff);
+                            }
+                            .sidebar-logo:hover .aa-ring-3 {
+                                opacity: 0.6 !important;
+                                animation: ringSpin 2s linear infinite;
+                                filter: drop-shadow(0 0 12px #a78bfa);
                             }
                             .sidebar-logo:hover .aa-bolt {
                                 animation: electricIntense 0.08s infinite !important;
+                            }
+                            /* Remove whole svg spin */
+                            .sidebar-logo:hover .sidebar-logo-icon svg {
+                                animation: none;
                             }
                         `}</style>
                     </motion.div>
