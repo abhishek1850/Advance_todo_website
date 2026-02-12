@@ -96,7 +96,7 @@ export default function AnalyticsView() {
                             </defs>
                             <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 12 }} />
                             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 12 }} />
-                            <Tooltip contentStyle={tooltipStyle} />
+                            <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#f0f0f8' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                             <Bar dataKey="completed" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
@@ -111,7 +111,7 @@ export default function AnalyticsView() {
                                 <Pie data={horizonData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={4} dataKey="value">
                                     {horizonData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
                                 </Pie>
-                                <Tooltip contentStyle={tooltipStyle} />
+                                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#f0f0f8' }} />
                             </PieChart>
                         </ResponsiveContainer>
                     ) : (
@@ -141,7 +141,7 @@ export default function AnalyticsView() {
                                 <PolarRadiusAxis tick={false} axisLine={false} />
                                 <Radar name="Completed" dataKey="completed" stroke="#7c6cf0" fill="#7c6cf0" fillOpacity={0.25} strokeWidth={2} />
                                 <Radar name="Total" dataKey="total" stroke="#00d4cf" fill="#00d4cf" fillOpacity={0.08} strokeWidth={1.5} />
-                                <Tooltip contentStyle={tooltipStyle} />
+                                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#f0f0f8' }} />
                             </RadarChart>
                         </ResponsiveContainer>
                     </motion.div>
@@ -155,7 +155,7 @@ export default function AnalyticsView() {
                             <BarChart data={priorityData} layout="vertical">
                                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 12 }} />
                                 <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9898b8', fontSize: 12 }} width={70} />
-                                <Tooltip contentStyle={tooltipStyle} />
+                                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#f0f0f8' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                                 <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                                     {priorityData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                                 </Bar>

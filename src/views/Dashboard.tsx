@@ -133,7 +133,7 @@ export default function Dashboard() {
                             </defs>
                             <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 12 }} />
                             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 12 }} />
-                            <Tooltip contentStyle={{ background: 'rgba(14,14,26,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#f0f0f8', backdropFilter: 'blur(12px)' }} />
+                            <Tooltip contentStyle={{ background: 'rgba(14,14,26,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#f0f0f8', backdropFilter: 'blur(12px)' }} itemStyle={{ color: '#f0f0f8' }} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
                             <Area type="monotone" dataKey="completed" stroke="#7c6cf0" fill="url(#colorCompleted)" strokeWidth={2.5} />
                         </AreaChart>
                     </ResponsiveContainer>
