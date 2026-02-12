@@ -273,7 +273,7 @@ export default function Sidebar() {
                                 if (isInstallable) {
                                     installApp();
                                 } else if (isIOS) {
-                                    alert("To install on iOS:\n1. Tap the 'Share' button\n2. Scroll down and tap 'Add to Home Screen'");
+                                    alert("iOS Device Detected:\n\nApple does not support one-click install. To install:\n1. Tap 'Share'\n2. Scroll down & tap 'Add to Home Screen'");
                                 } else {
                                     // If clicked but not ready, show a helpful toast/alert instead of generic error
                                     alert("App isn't ready for one-click install yet.\n\nTry reloading the page, or use your browser menu to 'Add to Home Screen'.");
