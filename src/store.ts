@@ -128,13 +128,10 @@ export const useStore = create<AppState>()(
 
             setUser: async (user) => {
                 if (!user) {
-                    console.log('🔒 Logout: Clearing user state and storage.');
                     set({ user: null, ...INITIAL_STATE, authLoading: false });
                     localStorage.removeItem('todo-app-storage'); // Hard clear
                     return;
                 }
-
-                console.log('🔐 Auth State Changed. New User:', user.uid);
 
                 // 1. CLEAR STATE IMMEDIATELY to prevent data leak from previous user
                 set({ user, ...INITIAL_STATE, authLoading: true });
@@ -142,7 +139,6 @@ export const useStore = create<AppState>()(
                 try {
                     // 2. Fetch User Data
                     const docRef = doc(db, 'users', user.uid);
-                    console.log(`📡 Fetching profile for: ${user.uid}`);
 
                     const docSnap = await getDoc(docRef);
 
@@ -155,7 +151,6 @@ export const useStore = create<AppState>()(
                             throw new Error('Security Mismatch');
                         }
 
-                        console.log('✅ User profile loaded successfully.');
                         set({
                             tasks: data.tasks || [],
                             profile: { ...get().profile, ...data.profile, onboardingComplete: true },
@@ -163,7 +158,6 @@ export const useStore = create<AppState>()(
                             completionHistory: data.completionHistory || [],
                         });
                     } else {
-                        console.warn(`⚠️ No profile found for ${user.uid}. Waiting for creation...`);
                         // Do not reset to false here, rely on Initial State or AuthPage creation
                     }
                 } catch (error) {

@@ -21,7 +21,6 @@ export function usePWA() {
             // Stash the event so it can be triggered later.
             setDeferredPrompt(e as BeforeInstallPromptEvent);
             setIsInstallable(true);
-            console.log('PWA Install Prompt captured');
         };
 
         window.addEventListener('beforeinstallprompt', handler);
@@ -33,7 +32,6 @@ export function usePWA() {
 
     const installApp = async () => {
         if (!deferredPrompt) {
-            console.log('No deferred prompt available');
             return;
         }
 
@@ -41,8 +39,7 @@ export function usePWA() {
         deferredPrompt.prompt();
 
         // Wait for the user to respond to the prompt
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to the install prompt: ${outcome}`);
+        await deferredPrompt.userChoice;
 
         // We've used the prompt, and can't use it again, throw it away
         setDeferredPrompt(null);
