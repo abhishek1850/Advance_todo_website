@@ -59,7 +59,8 @@ export default function Sidebar() {
                         style={{
                             position: 'fixed',
                             top: 'max(16px, env(safe-area-inset-top))',
-                            left: 'max(16px, env(safe-area-inset-left))',
+                            left: mobileOpen ? 'auto' : 'max(16px, env(safe-area-inset-left))',
+                            right: mobileOpen ? 'max(16px, env(safe-area-inset-right))' : 'auto',
                             zIndex: 200,
                             padding: 12,
                             borderRadius: '50%',
