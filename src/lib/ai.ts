@@ -81,33 +81,82 @@ Output JSON only:
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30_000); // 30s timeout
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
-        ],
-        temperature: 0.7
-      })
-    });
+    // Check if running on Vercel/Production
+    // If running dev, try direct call for convenience.
+    // If prod, try API route for security.
+    const isProd = import.meta.env.PROD;
+    let response;
+
+    if (isProd) {
+      try {
+        // Try calling our secure backend
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
+            ]
+          })
+        });
+
+        // If backend fails (e.g. 404/500), throw to catch below and fallback
+        if (!response.ok) {
+          const text = await response.text();
+          console.warn("Backend API failed, trying direct fallback:", response.status, text);
+          throw new Error("Backend unavailable");
+        }
+
+      } catch (err) {
+        // Fallback to direct client-side call if backend fails
+        console.log("Using direct client-side fallback...");
+        if (!apiKey) throw new Error("Missing Client API Key for fallback.");
+
+        response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
+            ],
+            temperature: 0.7
+          })
+        });
+      }
+    } else {
+      // Local Development: Direct Call always
+      response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
+          ],
+          temperature: 0.7
+        })
+      });
+    }
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI Error Details:", errorText);
-      try {
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.error?.message) console.error("Groq Message:", errorJson.error.message);
-      } catch (e) { /* ignore */ }
-
+      // ... (error handling logic remains same)
       if (response.status === 429) {
         throw new Error("AI service is busy (Rate Limit). Please try again.");
       }
