@@ -94,8 +94,7 @@ Output JSON only:
           { role: "system", content: systemPrompt },
           { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
         ],
-        temperature: 0.7,
-        response_format: { type: "json_object" } // Force JSON mode
+        temperature: 0.7
       })
     });
 
