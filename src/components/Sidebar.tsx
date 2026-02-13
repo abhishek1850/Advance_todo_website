@@ -160,7 +160,7 @@ export default function Sidebar() {
                                 </g>
                             </svg>
                         </div>
-/* Performance optimization: Animations disabled */
+
                     </motion.div>
                     <h1>Attackers Arena</h1>
                 </div>
