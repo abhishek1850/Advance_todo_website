@@ -70,7 +70,19 @@ export default function Dashboard() {
             <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16 }}>
                 <div>
                     <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, background: 'linear-gradient(to right, #fff, #a5a5a5)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        {getSmartGreeting(profile.name || 'Attacker')}
+                        {(() => {
+                            const greeting = getSmartGreeting(profile.name || 'Attacker');
+                            const firstSpace = greeting.indexOf(' ');
+                            if (firstSpace === -1) return greeting;
+                            const emoji = greeting.slice(0, firstSpace);
+                            const text = greeting.slice(firstSpace + 1);
+                            return (
+                                <>
+                                    <span style={{ WebkitTextFillColor: 'initial', marginRight: 12 }}>{emoji}</span>
+                                    {text}
+                                </>
+                            );
+                        })()}
                     </h1>
                     <div style={{ fontSize: 14, color: 'var(--text-tertiary)', marginTop: 4 }}>
                         {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
