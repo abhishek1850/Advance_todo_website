@@ -30,5 +30,16 @@ export default defineConfig({
   build: {
     // Don't generate source maps in production (prevents source code exposure)
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'framer-motion'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'vendor-charts': ['recharts'],
+          'vendor-ui': ['lucide-react', 'date-fns']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000,
   },
 })
