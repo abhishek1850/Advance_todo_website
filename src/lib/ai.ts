@@ -44,9 +44,9 @@ function sanitizeContext(context: any): any {
 }
 
 export const generateAIResponse = async (userMessage: string, context: any, userId?: string) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error("Missing API Key. Please set VITE_GEMINI_API_KEY in .env");
+    throw new Error("Missing API Key. Please set VITE_GROQ_API_KEY in .env");
   }
 
   // Rate limit check
@@ -81,41 +81,37 @@ Output JSON only:
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30_000); // 30s timeout
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
       signal: controller.signal,
       body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.7
-        },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-        ]
+        model: "llama3-70b-8192",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" } // Force JSON mode
       })
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      await response.json().catch(() => ({}));
-      // Don't expose internal error details to user
-      if (response.status === 403 || response.status === 401) {
-        throw new Error("AI service authentication failed. Please contact support.");
-      } else if (response.status === 429) {
-        throw new Error("AI service is busy. Please try again in a moment.");
-      } else {
-        throw new Error(`AI service error (${response.status}). Please try again.`);
+      const err = await response.json().catch(() => ({}));
+      console.error("AI Error:", err);
+      if (response.status === 429) {
+        throw new Error("AI service is busy (Rate Limit). Please try again.");
       }
+      throw new Error(`AI service error (${response.status}).`);
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data.choices?.[0]?.message?.content;
 
     if (!text) throw new Error("Empty response from AI. Please try again.");
 
