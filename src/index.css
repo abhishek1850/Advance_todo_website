@@ -744,7 +744,8 @@ body::before {
 .empty-state-icon {
   font-size: 56px;
   margin-bottom: 20px;
-  filter: drop-shadow(0 4px 20px rgba(124, 108, 240, 0.2));
+  /* Use a golden yellow drop shadow for the sun icon */
+  filter: drop-shadow(0 4px 20px rgba(255, 200, 87, 0.4));
 }
 
 .empty-state-title {
