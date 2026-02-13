@@ -28,7 +28,7 @@ export default function ProgressRing({ progress, size = 120, strokeWidth = 8, la
                 />
             </svg>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <span className="progress-ring-value">{progress}%</span>
+                <span className="progress-ring-value" style={{ fontSize: Math.round(size * 0.22), fontWeight: 700, color: 'var(--text-primary)' }}>{progress}%</span>
                 {label && <span className="progress-ring-label">{label}</span>}
             </div>
         </div>

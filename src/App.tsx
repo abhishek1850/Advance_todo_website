@@ -19,6 +19,7 @@ const AchievementsView = lazy(() => import('./views/AchievementsView'));
 const AuthPage = lazy(() => import('./views/AuthPage'));
 const ProfileView = lazy(() => import('./views/ProfileView'));
 const AssistantView = lazy(() => import('./views/AssistantView'));
+const FocusView = lazy(() => import('./views/FocusView'));
 
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -36,6 +37,7 @@ const VIEW_TITLES: Record<string, string> = {
   achievements: 'Achievements',
   profile: 'User Profile',
   assistant: 'AI Coach',
+  focus: 'Focus Mode',
 };
 
 const VIEW_KEYS: Record<string, ViewType> = {
@@ -47,6 +49,7 @@ const VIEW_KEYS: Record<string, ViewType> = {
   '6': 'achievements',
   '7': 'profile',
   '8': 'assistant',
+  '9': 'focus',
 };
 
 function App() {
@@ -147,6 +150,7 @@ function App() {
       case 'achievements': return <AchievementsView />;
       case 'profile': return <ProfileView />;
       case 'assistant': return <AssistantView />;
+      case 'focus': return <FocusView />;
       default: return <Dashboard />;
     }
   };

@@ -206,7 +206,12 @@ export default function AssistantView() {
                 {messages.length === 0 && (
                     <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', marginTop: 40 }}>
                         <MessageSquare size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
-                        <p>No messages yet. Start by saying "Help me plan my day!"</p>
+                        <p>No messages yet. Try saying:</p>
+                        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+                            <button onClick={() => handleSend("Help me plan my day for maximum productivity.")} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}>"Plan my day for maximum productivity"</button>
+                            <button onClick={() => handleSend("I'm feeling overwhelmed. Where should I start?")} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}>"I'm feeling overwhelmed. Where should I start?"</button>
+                            <button onClick={() => handleSend("Break down my biggest task into 5-minute steps.")} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', padding: '8px 16px', borderRadius: 20, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}>"Break down my biggest task into 5-minute steps"</button>
+                        </div>
                     </div>
                 )}
 

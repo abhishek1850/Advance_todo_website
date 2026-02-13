@@ -162,7 +162,7 @@ export default function Dashboard() {
                         <Zap size={18} /> Yesterday's Pending ({pendingTasks.length})
                     </div>
                     <div className="task-list">
-                        {pendingTasks.map((task, i) => (
+                        {pendingTasks.map((task) => (
                             <TaskCard key={task.id} task={task} />
                         ))}
                     </div>
@@ -251,7 +251,7 @@ export default function Dashboard() {
                         <span className="task-list-count">{todayCompleted}/{todayTotal} done</span>
                     </div>
                     <div className="task-list">
-                        {regularTasks.slice(0, 5).map((task, i) => (
+                        {regularTasks.slice(0, 5).map((task) => (
                             <TaskCard key={task.id} task={task} />
                         ))}
                     </div>

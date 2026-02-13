@@ -62,7 +62,7 @@ export default function TodayView() {
                     </div>
                     <div className="task-list">
                         <AnimatePresence mode="popLayout">
-                            {incomplete.map((task, i) => <TaskCard key={task.id} task={task} />)}
+                            {incomplete.map((task) => <TaskCard key={task.id} task={task} />)}
                         </AnimatePresence>
                     </div>
                 </div>
@@ -77,7 +77,7 @@ export default function TodayView() {
                     </div>
                     <div className="task-list">
                         <AnimatePresence mode="popLayout">
-                            {completed.map((task, i) => <TaskCard key={task.id} task={task} />)}
+                            {completed.map((task) => <TaskCard key={task.id} task={task} />)}
                         </AnimatePresence>
                     </div>
                 </div>

@@ -101,7 +101,7 @@ export interface AIChatMessage {
   suggestedTasks?: any[]; // Keep flexible for now or define strict type if needed
 }
 
-export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup';
+export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup' | 'focus';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;
