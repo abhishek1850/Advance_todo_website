@@ -95,7 +95,7 @@ Output JSON only:
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
@@ -123,7 +123,7 @@ Output JSON only:
           },
           signal: controller.signal,
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
@@ -142,7 +142,7 @@ Output JSON only:
         },
         signal: controller.signal,
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-8b-instant",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
