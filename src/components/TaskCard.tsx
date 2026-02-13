@@ -6,10 +6,9 @@ import { format, parseISO, isPast, isToday } from 'date-fns';
 
 interface TaskCardProps {
     task: Task;
-    index?: number;
 }
 
-export default function TaskCard({ task, index = 0 }: TaskCardProps) {
+export default function TaskCard({ task }: TaskCardProps) {
     const { toggleTask, openTaskModal, deleteTask } = useStore();
 
     const isOverdue = task.dueDate && !task.isCompleted && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate));
@@ -25,7 +24,7 @@ export default function TaskCard({ task, index = 0 }: TaskCardProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, x: -100, height: 0, marginBottom: 0 }}
-            transition={{ delay: index * 0.04, duration: 0.25 }}
+            transition={{ duration: 0.2 }}
             layout
         >
             <div className={`task-card-priority ${task.priority}`} />

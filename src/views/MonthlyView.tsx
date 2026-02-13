@@ -67,7 +67,7 @@ export default function MonthlyView() {
                     </div>
                     <div className="task-list">
                         <AnimatePresence mode="popLayout">
-                            {incomplete.map((task, i) => <TaskCard key={task.id} task={task} index={i} />)}
+                            {incomplete.map((task, i) => <TaskCard key={task.id} task={task} />)}
                         </AnimatePresence>
                     </div>
                 </div>
@@ -82,7 +82,7 @@ export default function MonthlyView() {
                     <AnimatePresence>
                         {showCompleted && (
                             <motion.div className="task-list" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                                {completed.map((task, i) => <TaskCard key={task.id} task={task} index={i} />)}
+                                {completed.map((task, i) => <TaskCard key={task.id} task={task} />)}
                             </motion.div>
                         )}
                     </AnimatePresence>

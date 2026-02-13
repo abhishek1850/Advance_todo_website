@@ -163,7 +163,7 @@ export default function Dashboard() {
                     </div>
                     <div className="task-list">
                         {pendingTasks.map((task, i) => (
-                            <TaskCard key={task.id} task={task} index={i} />
+                            <TaskCard key={task.id} task={task} />
                         ))}
                     </div>
                 </motion.div>
@@ -189,7 +189,7 @@ export default function Dashboard() {
 
             {/* Charts Row */}
             <div className="charts-grid">
-                <motion.div className="chart-container" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+                <motion.div className="chart-container" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                     <div className="chart-title">Weekly Activity</div>
                     <ResponsiveContainer width="100%" height={200}>
                         <AreaChart data={weekData}>
@@ -207,7 +207,7 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                 </motion.div>
 
-                <motion.div className="chart-container" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, textAlign: 'center' }}>
+                <motion.div className="chart-container" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, textAlign: 'center' }}>
                     <div className="chart-title">Daily Progress</div>
                     <ProgressRing progress={dailyRate} size={120} label="Complete" />
                     <div className="productivity-score">
@@ -222,7 +222,7 @@ export default function Dashboard() {
 
             {/* Daily Challenge */}
             {profile.dailyChallenge && (
-                <motion.div className="challenge-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }} style={{ marginBottom: 32 }}>
+                <motion.div className="challenge-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 32 }}>
                     <div className="challenge-label">⚡ Daily Challenge</div>
                     <div className="challenge-title">{profile.dailyChallenge.title}</div>
                     <div className="challenge-desc">{profile.dailyChallenge.description}</div>
@@ -245,14 +245,14 @@ export default function Dashboard() {
 
             {/* Recent Tasks */}
             {regularTasks.length > 0 && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                     <div className="task-list-header">
                         <h3 className="task-list-title">Today's Tasks</h3>
                         <span className="task-list-count">{todayCompleted}/{todayTotal} done</span>
                     </div>
                     <div className="task-list">
                         {regularTasks.slice(0, 5).map((task, i) => (
-                            <TaskCard key={task.id} task={task} index={i} />
+                            <TaskCard key={task.id} task={task} />
                         ))}
                     </div>
                 </motion.div>

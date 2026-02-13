@@ -160,70 +160,7 @@ export default function Sidebar() {
                                 </g>
                             </svg>
                         </div>
-                        <style>{`
-                            @keyframes aaLight {
-                                0%, 100% { opacity: 0.3; }
-                                50% { opacity: 0.65; }
-                            }
-                            @keyframes electric {
-                                0%, 100% { filter: drop-shadow(0 0 2px #00d4ff); opacity: 1; }
-                                3% { filter: drop-shadow(0 0 15px #ffffff); opacity: 1; }
-                                6% { filter: drop-shadow(0 0 5px #00d4ff); opacity: 0.8; }
-                                7% { filter: drop-shadow(0 0 2px #00d4ff); transform: scale(1.02); }
-                                8% { filter: drop-shadow(0 0 2px #00d4ff); transform: scale(1); }
-                                40% { filter: drop-shadow(0 0 3px #00d4ff); }
-                                42% { filter: drop-shadow(0 0 20px #ffffff) brightness(1.5); }
-                                44% { filter: drop-shadow(0 0 5px #00d4ff); }
-                                90% { filter: drop-shadow(0 0 4px #00d4ff); opacity: 0.7; }
-                                92% { filter: drop-shadow(0 0 15px #ffffff) brightness(1.2); opacity: 1; }
-                            }
-                            @keyframes ringSpin {
-                                0% { transform: rotate(0deg); }
-                                100% { transform: rotate(360deg); }
-                            }
-                            @keyframes ringSpinRev {
-                                0% { transform: rotate(360deg); }
-                                100% { transform: rotate(0deg); }
-                            }
-                            @keyframes electricIntense {
-                                0%, 100% { filter: drop-shadow(0 0 5px #00d4ff) brightness(1.2); opacity: 1; transform: scale(1.1); }
-                                25% { filter: drop-shadow(0 0 20px #ffffff) brightness(2); transform: scale(1.05) translateX(-2px); }
-                                50% { filter: drop-shadow(0 0 8px #00d4ff); opacity: 0.8; transform: scale(1.15) translateY(2px); }
-                                75% { filter: drop-shadow(0 0 25px #ffffff) brightness(2.5); transform: scale(1.08) translateX(2px); }
-                            }
-
-                            .aa-inner-light {
-                                animation: aaLight 3s ease-in-out infinite;
-                            }
-                            .aa-bolt {
-                                animation: electric 3s infinite linear;
-                                transform-origin: center;
-                            }
-                            
-                            /* Hover effects */
-                            .sidebar-logo:hover .aa-ring-1 {
-                                opacity: 1 !important;
-                                animation: ringSpin 1s linear infinite;
-                                filter: drop-shadow(0 0 8px #00d4ff);
-                            }
-                            .sidebar-logo:hover .aa-ring-2 {
-                                opacity: 0.8 !important;
-                                animation: ringSpinRev 0.6s linear infinite;
-                                filter: drop-shadow(0 0 5px #ffffff);
-                            }
-                            .sidebar-logo:hover .aa-ring-3 {
-                                opacity: 0.6 !important;
-                                animation: ringSpin 2s linear infinite;
-                                filter: drop-shadow(0 0 12px #a78bfa);
-                            }
-                            .sidebar-logo:hover .aa-bolt {
-                                animation: electricIntense 0.08s infinite !important;
-                            }
-                            /* Remove whole svg spin */
-                            .sidebar-logo:hover .sidebar-logo-icon svg {
-                                animation: none;
-                            }
-                        `}</style>
+/* Performance optimization: Animations disabled */
                     </motion.div>
                     <h1>Attackers Arena</h1>
                 </div>

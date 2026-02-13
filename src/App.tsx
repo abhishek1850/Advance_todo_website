@@ -1,5 +1,5 @@
 import { useCallback, useEffect, lazy, Suspense } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+// import { AnimatePresence, motion } from 'framer-motion'; // Removed for performance
 import { Plus, Loader2 } from 'lucide-react';
 import { useStore } from './store';
 import Sidebar from './components/Sidebar';
@@ -173,25 +173,15 @@ function App() {
           </div>
         </header>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentView}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-          >
-            <ErrorBoundary>
-              <Suspense fallback={
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-tertiary)' }}>
-                  <Loader2 size={32} className="animate-spin" />
-                </div>
-              }>
-                {renderView()}
-              </Suspense>
-            </ErrorBoundary>
-          </motion.div>
-        </AnimatePresence>
+        <ErrorBoundary>
+          <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-tertiary)' }}>
+              <Loader2 size={32} className="animate-spin" />
+            </div>
+          }>
+            {renderView()}
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
 
