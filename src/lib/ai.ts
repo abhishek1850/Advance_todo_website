@@ -89,7 +89,7 @@ Output JSON only:
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: "llama-3.1-70b-versatile",
+        model: "mixtral-8x7b-32768",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
