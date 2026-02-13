@@ -62,39 +62,20 @@ export const generateAIResponse = async (userMessage: string, context: any, user
 
   const safeContext = sanitizeContext(context);
 
-  const systemPrompt = `
-      You are an elite productivity battle coach inside a mission management app (Attackers Arena).
-      Your role is to help users plan their day intelligently.
-      
-      Current User Context:
-      - Pending Tasks (Title, Priority, Horizon, RolledOver): ${JSON.stringify(safeContext.pendingTasks)}
-      - Yesterday's Completed Tasks: ${safeContext.yesterdayCompletedCount}
-      - Current Streak: ${safeContext.streak} days
-      
-      User Message: "${cleanMessage}"
-      
-      Response Guidelines:
-      1. Suggest realistic tasks (3-6 max) based on capacity.
-      2. Prioritize EXISTING pending tasks first, especially if skipped yesterday (isRolledOver=true).
-      3. Only suggest new tasks if the plan needs filling.
-      4. Break large goals into smaller steps if they seem stuck.
-      5. Tone: Encouraging, structured, professional but friendly. Use short sentences.
-      6. Output strict JSON.
-
-      JSON Schema:
-      {
-        "reflection": "Brief analysis of their workload or situation.",
-        "suggestedTasks": [
-          {
-            "title": "Task Title",
-            "priority": "critical | high | medium | low",
-            "estimatedTime": "number (minutes)",
-            "reason": "Why this task?"
-          }
-        ],
-        "focusAdvice": "One sentence of actionable advice."
-      }
-    `;
+  /* Minimal System Prompt */
+  const systemPrompt = `Role: Productivity Coach.
+Context:
+- Pending: ${JSON.stringify(safeContext.pendingTasks)}
+- Yest. Done: ${safeContext.yesterdayCompletedCount}
+- Streak: ${safeContext.streak}
+User: "${cleanMessage}"
+Task: Plan day. Prioritize pending. Suggest 3-5 tasks.
+Output JSON only:
+{
+  "reflection": "Brief analysis",
+  "suggestedTasks": [{"title": "Str", "priority": "high|medium", "estimatedTime": 30, "reason": "Str"}],
+  "focusAdvice": "One sentence tip"
+}`;
 
   try {
     const controller = new AbortController();
