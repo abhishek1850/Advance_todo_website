@@ -89,7 +89,7 @@ Output JSON only:
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: "llama3-70b-8192",
+        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
@@ -101,12 +101,17 @@ Output JSON only:
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      console.error("AI Error:", err);
+      const errorText = await response.text();
+      console.error("AI Error Details:", errorText);
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error?.message) console.error("Groq Message:", errorJson.error.message);
+      } catch (e) { /* ignore */ }
+
       if (response.status === 429) {
         throw new Error("AI service is busy (Rate Limit). Please try again.");
       }
-      throw new Error(`AI service error (${response.status}).`);
+      throw new Error(`AI service error (${response.status}): ${errorText.slice(0, 100)}`);
     }
 
     const data = await response.json();
