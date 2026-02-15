@@ -44,15 +44,6 @@ function sanitizeContext(context: any): any {
 }
 
 export const generateAIResponse = async (userMessage: string, context: any, userId?: string) => {
-  const groqKey = import.meta.env.VITE_GROQ_API_KEY;
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY; // Support Gemini if available
-
-  const apiKey = groqKey || geminiKey;
-
-  if (!apiKey) {
-    throw new Error("Missing AI API Key (Groq or Gemini). Please set VITE_GROQ_API_KEY or VITE_GEMINI_API_KEY.");
-  }
-
   // Rate limit check: Max 10 calls per minute
   if (userId && !checkRateLimit(userId)) {
     throw new Error("Operational capacity reached. Please wait 60 seconds before next inquiry.");
@@ -102,76 +93,19 @@ Output JSON ONLY (No markdown, no text outside JSON):
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30_000); // 30s timeout
 
-    // Check if running on Vercel/Production
-    // If running dev, try direct call for convenience.
-    // If prod, try API route for security.
-    const isProd = import.meta.env.PROD;
-    let response;
-
-    if (isProd) {
-      try {
-        // Try calling our secure backend
-        response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
-            ]
-          })
-        });
-
-        // If backend fails (e.g. 404/500), throw to catch below and fallback
-        if (!response.ok) {
-          const text = await response.text();
-          console.warn("Backend API failed, trying direct fallback:", response.status, text);
-          throw new Error("Backend unavailable");
-        }
-
-      } catch (err) {
-        // Fallback to direct client-side call if backend fails
-        console.log("Using direct client-side fallback...");
-        if (!apiKey) throw new Error("Missing Client API Key for fallback.");
-
-        response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
-            ],
-            temperature: 0.7
-          })
-        });
-      }
-    } else {
-      // Local Development: Direct Call always
-      response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
-          ],
-          temperature: 0.7
-        })
-      });
-    }
+    // Always use backend API for security (secrets stay server-side)
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
+        ]
+      })
+    });
 
     clearTimeout(timeoutId);
 
