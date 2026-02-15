@@ -605,9 +605,14 @@ export const useStore = create<AppState>()(
                 const { instances } = get();
                 if (instances.length === 0) return [];
 
-                // 1. Group instances by week start (Monday)
+                // 1. Filter only daily/one-time instances and group by week start (Monday)
+                const { templates } = get();
                 const weekGroups: Record<string, TaskInstance[]> = {};
+
                 instances.forEach(inst => {
+                    const tmpl = templates.find(t => t.id === inst.taskId);
+                    if (!tmpl || tmpl.horizon === 'monthly' || tmpl.horizon === 'yearly') return;
+
                     const instDate = parseISO(inst.date);
                     const weekStart = format(startOfWeek(instDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
                     if (!weekGroups[weekStart]) weekGroups[weekStart] = [];
