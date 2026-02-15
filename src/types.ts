@@ -19,6 +19,7 @@ export interface TaskTemplate {
   tags: string[];
   xpValue: number;
   subtasks: Subtask[]; // Templates for subtasks
+  archived?: boolean;
 }
 
 export interface TaskInstance {

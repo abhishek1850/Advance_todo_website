@@ -227,6 +227,8 @@ export const useStore = create<AppState>()(
 
                 // 1. Generate Instances for All Types
                 state.templates.forEach(t => {
+                    if (t.archived) return; // Skip archived tasks for future generation
+
                     let targetDate = today;
                     if (t.horizon === 'monthly') targetDate = currentMonthStart;
                     if (t.horizon === 'yearly') targetDate = currentYearStart;
@@ -336,10 +338,17 @@ export const useStore = create<AppState>()(
                 playSound('delete');
                 const instance = state.instances.find(i => i.id === id);
                 const templateId = instance ? instance.taskId : id;
+                const today = format(new Date(), 'yyyy-MM-dd');
 
-                const newTemplates = state.templates.filter((t) => t.id !== templateId);
-                // Also cleanup instances for this task to avoid clutter
-                const newInstances = state.instances.filter((i) => i.taskId !== templateId);
+                // Soft delete: Mark template as archived
+                const newTemplates = state.templates.map(t =>
+                    t.id === templateId ? { ...t, archived: true } : t
+                );
+
+                // Remove only current and future instances. Keep the past (History/Yesterday).
+                const newInstances = state.instances.filter(i =>
+                    !(i.taskId === templateId && i.date >= today)
+                );
 
                 if (state.user) {
                     updateDoc(doc(db, 'users', state.user.uid), {
@@ -467,7 +476,7 @@ export const useStore = create<AppState>()(
                 const todaysInstances = state.instances.filter(i => i.date === today);
 
                 return todaysInstances.map(i => {
-                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    const tmpl = state.templates.find(t => t.id === i.taskId && !t.archived);
                     if (!tmpl) return null;
                     return {
                         ...tmpl,
@@ -508,7 +517,7 @@ export const useStore = create<AppState>()(
                 const monthlyInstances = state.instances.filter(i => i.date === monthStart);
 
                 return monthlyInstances.map(i => {
-                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    const tmpl = state.templates.find(t => t.id === i.taskId && !t.archived);
                     if (!tmpl || tmpl.horizon !== 'monthly') return null;
                     return {
                         ...tmpl,
@@ -528,7 +537,7 @@ export const useStore = create<AppState>()(
                 const yearlyInstances = state.instances.filter(i => i.date === yearStart);
 
                 return yearlyInstances.map(i => {
-                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    const tmpl = state.templates.find(t => t.id === i.taskId && !t.archived);
                     if (!tmpl || tmpl.horizon !== 'yearly') return null;
                     return {
                         ...tmpl,
