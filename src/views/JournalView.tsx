@@ -3,10 +3,10 @@ import { motion } from 'framer-motion';
 import {
     BookOpen, Trophy, AlertTriangle, Lightbulb,
     Target, Save, Calendar, TrendingUp,
-    Smile, Meh, Frown, Star, Edit3
+    Smile, Meh, Frown, Star, Edit3, ChevronRight
 } from 'lucide-react';
 import { useStore } from '../store';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
 import { LineChart, Line, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 const moodEmojis = [
@@ -18,17 +18,38 @@ const moodEmojis = [
 ];
 
 export default function JournalView() {
-    const { journalEntries, addJournalEntry, updateJournalEntry } = useStore();
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const existingEntry = journalEntries.find(j => j.date === todayStr);
+    const { journalEntries, addJournalEntry, updateJournalEntry, addNotification } = useStore();
+    const [viewingDate, setViewingDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [showSuccess, setShowSuccess] = useState(false);
+    const activeEntry = journalEntries.find(j => j.date === viewingDate);
+    const isToday = viewingDate === format(new Date(), 'yyyy-MM-dd');
 
-    const [wins, setWins] = useState(existingEntry?.wins || '');
-    const [mistakes, setMistakes] = useState(existingEntry?.mistakes || '');
-    const [lessons, setLessons] = useState(existingEntry?.lessons || '');
-    const [intent, setIntent] = useState(existingEntry?.tomorrowIntent || '');
-    const [mood, setMood] = useState(existingEntry?.mood || 3);
-    const [isEditing, setIsEditing] = useState(!existingEntry);
+    const [wins, setWins] = useState('');
+    const [mistakes, setMistakes] = useState('');
+    const [lessons, setLessons] = useState('');
+    const [intent, setIntent] = useState('');
+    const [mood, setMood] = useState(3);
+    const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Sync state when activeEntry or viewingDate changes
+    React.useEffect(() => {
+        if (activeEntry) {
+            setWins(activeEntry.wins);
+            setMistakes(activeEntry.mistakes);
+            setLessons(activeEntry.lessons);
+            setIntent(activeEntry.tomorrowIntent);
+            setMood(activeEntry.mood);
+            setIsEditing(false);
+        } else {
+            setWins('');
+            setMistakes('');
+            setLessons('');
+            setIntent('');
+            setMood(3);
+            setIsEditing(isToday);
+        }
+    }, [activeEntry, viewingDate, isToday]);
 
     // Analytics: Last 30 days mood and consistency
     const analyticsData = useMemo(() => {
@@ -58,17 +79,38 @@ export default function JournalView() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            if (existingEntry) {
-                await updateJournalEntry(existingEntry.id, {
+            if (activeEntry) {
+                await updateJournalEntry(activeEntry.id, {
                     wins, mistakes, lessons, tomorrowIntent: intent, mood
                 });
-                setIsEditing(false);
+                addNotification({
+                    title: 'Journal Updated',
+                    message: `Historical record for ${format(parseISO(viewingDate), 'MMM dd')} saved.`,
+                    type: 'info',
+                    icon: '💾'
+                });
             } else {
                 await addJournalEntry({
                     wins, mistakes, lessons, tomorrowIntent: intent, mood
                 });
-                setIsEditing(false);
+                // XP celebration is already handled in store for new entries
+                addNotification({
+                    title: 'Mission Logged',
+                    message: '+20 XP earned for daily reflection.',
+                    type: 'xp',
+                    icon: '🎯'
+                });
             }
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 2000);
+            setIsEditing(false);
+        } catch (error) {
+            addNotification({
+                title: 'Save Error',
+                message: 'Failed to save your journal entry.',
+                type: 'info',
+                icon: '❌'
+            });
         } finally {
             setIsSaving(false);
         }
@@ -89,7 +131,7 @@ export default function JournalView() {
                 <div className="header-meta">
                     <div className="meta-item">
                         <Calendar size={14} />
-                        <span>{format(new Date(), 'EEEE, MMMM do')}</span>
+                        <span>{format(parseISO(viewingDate), 'EEEE, MMMM do')}</span>
                     </div>
                 </div>
             </header>
@@ -109,9 +151,16 @@ export default function JournalView() {
                                         {React.createElement(moodEmojis.find(m => m.value === mood)?.icon || Smile, { size: 18 })}
                                         <span>{moodEmojis.find(m => m.value === mood)?.label}</span>
                                     </div>
-                                    <button className="btn-secondary btn-sm" onClick={() => setIsEditing(true)}>
-                                        <Edit3 size={14} /> Edit Entry
-                                    </button>
+                                    <div style={{ display: 'flex', gap: 12 }}>
+                                        {!isToday && (
+                                            <button className="btn-secondary btn-sm" onClick={() => setViewingDate(format(new Date(), 'yyyy-MM-dd'))}>
+                                                Back to Today
+                                            </button>
+                                        )}
+                                        <button className="btn-secondary btn-sm" onClick={() => setIsEditing(true)}>
+                                            <Edit3 size={14} /> Edit Entry
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <JournalSection title="Wins of the Day" icon={Trophy} content={wins} color="var(--success)" />
@@ -175,14 +224,42 @@ export default function JournalView() {
                                 </section>
 
                                 <div className="form-actions">
-                                    <button
-                                        className="btn-primary"
+                                    <motion.button
+                                        className={`premium-save-btn ${showSuccess ? 'success' : ''} ${isSaving ? 'saving' : ''}`}
                                         onClick={handleSave}
-                                        disabled={isSaving || !wins.trim() || !intent.trim()}
+                                        disabled={isSaving || !wins.trim() || !intent.trim() || showSuccess}
+                                        whileHover={{ scale: 1.02, translateY: -2 }}
+                                        whileTap={{ scale: 0.98 }}
                                     >
-                                        {isSaving ? 'Saving...' : (existingEntry ? 'Update Journal' : 'Lock in Entry (+20 XP)')}
-                                        <Save size={18} />
-                                    </button>
+                                        <div className="btn-content">
+                                            {isSaving ? (
+                                                <>
+                                                    <div className="btn-spinner" />
+                                                    <span>Securing Log...</span>
+                                                </>
+                                            ) : showSuccess ? (
+                                                <>
+                                                    <motion.div
+                                                        initial={{ scale: 0 }}
+                                                        animate={{ scale: 1 }}
+                                                        className="success-icon"
+                                                    >
+                                                        ✅
+                                                    </motion.div>
+                                                    <span>Entry Locked!</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>{activeEntry ? 'Update Journal' : 'Lock in Entry (+20 XP)'}</span>
+                                                    <Save size={18} className="btn-icon" />
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="btn-glow" />
+                                    </motion.button>
+                                    {isToday && activeEntry && !isSaving && (
+                                        <button className="btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -239,6 +316,34 @@ export default function JournalView() {
                             <span>Total Journal XP: {journalEntries.reduce((acc, curr) => acc + (curr.xpEarned || 0), 0)}</span>
                         </div>
                     </motion.div>
+
+                    <motion.div
+                        className="glass-card history-list-card"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        <h3>Past Logs</h3>
+                        <div className="recent-entries-list">
+                            {journalEntries.map(entry => (
+                                <button
+                                    key={entry.id}
+                                    className={`recent-entry-item ${viewingDate === entry.date ? 'active' : ''}`}
+                                    onClick={() => setViewingDate(entry.date)}
+                                >
+                                    <div className="entry-dot" style={{ background: moodEmojis.find(m => m.value === entry.mood)?.color || 'var(--primary)' }} />
+                                    <div className="entry-info">
+                                        <span className="entry-date">{format(parseISO(entry.date), 'MMM dd')}</span>
+                                        <span className="entry-preview">{entry.wins?.substring(0, 30)}...</span>
+                                    </div>
+                                    <ChevronRight size={14} />
+                                </button>
+                            ))}
+                            {journalEntries.length === 0 && (
+                                <p className="empty-text">No past logs yet.</p>
+                            )}
+                        </div>
+                    </motion.div>
                 </aside>
             </div>
 
@@ -261,6 +366,90 @@ export default function JournalView() {
 
                 .journal-card {
                     padding: 2.5rem;
+                }
+
+                .form-actions {
+                    margin-top: 2.5rem;
+                    display: flex;
+                    gap: 1rem;
+                    padding-bottom: 2rem;
+                }
+
+                .premium-save-btn {
+                    position: relative;
+                    padding: 1rem 2rem;
+                    background: var(--gradient-primary);
+                    border: none;
+                    border-radius: 16px;
+                    color: white;
+                    font-weight: 800;
+                    font-size: 1rem;
+                    cursor: pointer;
+                    overflow: hidden;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 10px 20px rgba(var(--primary-rgb), 0.3),
+                                0 0 0 1px rgba(255,255,255,0.1) inset;
+                    min-width: 240px;
+                }
+
+                .premium-save-btn:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                    filter: grayscale(0.5);
+                }
+
+                .premium-save-btn.success {
+                    background: linear-gradient(135deg, #00b09b, #96c93d);
+                    box-shadow: 0 10px 20px rgba(0, 176, 155, 0.3);
+                }
+
+                .btn-content {
+                    position: relative;
+                    z-index: 2;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.75rem;
+                }
+
+                .btn-icon {
+                    transition: transform 0.3s ease;
+                }
+
+                .premium-save-btn:hover:not(:disabled) .btn-icon {
+                    transform: translateX(3px) rotate(-5deg);
+                }
+
+                .btn-glow {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%);
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                }
+
+                .premium-save-btn:hover:not(:disabled) .btn-glow {
+                    opacity: 1;
+                }
+
+                .btn-spinner {
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid rgba(255,255,255,0.3);
+                    border-top-color: white;
+                    border-radius: 50%;
+                    animation: spin 0.8s linear infinite;
+                }
+
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+
+                .success-icon {
+                    font-size: 1.2rem;
                 }
 
                 .journal-form {
@@ -411,6 +600,86 @@ export default function JournalView() {
                     font-size: 0.9rem;
                     font-weight: 600;
                 }
+
+                .history-list-card {
+                    padding: 1.5rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                }
+
+                .recent-entries-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                    max-height: 400px;
+                    overflow-y: auto;
+                    padding-right: 0.5rem;
+                }
+
+                .recent-entry-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    padding: 0.75rem;
+                    background: rgba(255,255,255,0.03);
+                    border: 1px solid rgba(255,255,255,0.05);
+                    border-radius: 12px;
+                    color: white;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-align: left;
+                    width: 100%;
+                }
+
+                .recent-entry-item:hover {
+                    background: rgba(255,255,255,0.08);
+                    transform: translateX(4px);
+                }
+
+                .recent-entry-item.active {
+                    background: rgba(var(--primary-rgb), 0.1);
+                    border-color: var(--primary);
+                }
+
+                .entry-dot {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    flex-shrink: 0;
+                }
+
+                .entry-info {
+                    display: flex;
+                    flex-direction: column;
+                    flex: 1;
+                    min-width: 0;
+                }
+
+                .entry-date {
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    color: var(--primary);
+                }
+
+                .entry-preview {
+                    font-size: 0.75rem;
+                    color: rgba(255,255,255,0.5);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .empty-text {
+                    font-size: 0.8rem;
+                    color: rgba(255,255,255,0.3);
+                    text-align: center;
+                    padding: 1rem;
+                }
+
+                .recent-entries-list::-webkit-scrollbar { width: 4px; }
+                .recent-entries-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
             `}</style>
         </div>
     );

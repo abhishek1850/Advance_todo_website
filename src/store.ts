@@ -5,7 +5,7 @@ import type {
 } from './types';
 import { format, differenceInDays, parseISO, startOfWeek, addDays, subDays, startOfMonth, startOfYear, getWeek } from 'date-fns';
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, addDoc, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { playSound } from './lib/sounds';
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
@@ -798,7 +798,7 @@ export const useStore = create<AppState>()(
                 });
 
                 // Sync profile
-                updateDoc(doc(db, 'users', user.uid), { profile: newProfile });
+                await setDoc(doc(db, 'users', user.uid), { profile: newProfile }, { merge: true });
                 playSound('success');
             },
 
@@ -820,13 +820,15 @@ export const useStore = create<AppState>()(
 
                 const q = query(
                     collection(db, 'journal_entries'),
-                    where('userId', '==', user.uid),
-                    orderBy('date', 'desc'),
-                    limit(60) // Show last 2 months approx
+                    where('userId', '==', user.uid)
                 );
 
                 const snap = await getDocs(q);
-                const entries = snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
+                const entries = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() } as JournalEntry))
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .slice(0, 60);
+
                 set({ journalEntries: entries });
             },
         }),
