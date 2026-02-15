@@ -4,7 +4,7 @@ import { X, Plus, Minus } from 'lucide-react';
 import { useStore } from '../store';
 import type { TaskHorizon, TaskPriority, EnergyLevel, RecurrencePattern } from '../types';
 import { format } from 'date-fns';
-import { WeatherIcon } from './MotivationEngine';
+import { WeatherIcon } from '../lib/weather';
 
 const CATEGORIES = ['Work', 'Personal', 'Health', 'Learning', 'Finance', 'Social', 'Creative', 'Errands'];
 

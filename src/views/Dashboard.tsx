@@ -5,7 +5,8 @@ import { useStore } from '../store';
 import TaskCard from '../components/TaskCard';
 import { playSound } from '../lib/sounds';
 import ProgressRing from '../components/ProgressRing';
-import { DailyMotivation, StreakMilestone, ProductivityTip, getSmartGreeting, WeatherIcon } from '../components/MotivationEngine';
+import { DailyMotivation, StreakMilestone, ProductivityTip } from '../components/MotivationEngine';
+import { getSmartGreeting, WeatherIcon } from '../lib/weather';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 // Animated counter hook

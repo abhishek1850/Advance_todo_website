@@ -26,7 +26,8 @@ const JournalView = lazy(() => import('./views/JournalView'));
 
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { useSessionTimeout, getSmartGreeting, WeatherIcon } from './components/MotivationEngine';
+import { useSessionTimeout } from './components/MotivationEngine';
+import { getSmartGreeting, WeatherIcon } from './lib/weather';
 import FocusTimer from './components/FocusTimer';
 
 import type { ViewType } from './types';

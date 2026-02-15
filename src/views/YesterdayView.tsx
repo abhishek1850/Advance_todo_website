@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import TaskCard from '../components/TaskCard';
 import ProgressRing from '../components/ProgressRing';
 import type { TaskPriority } from '../types';
-import { WeatherIcon } from '../components/MotivationEngine';
+import { WeatherIcon } from '../lib/weather';
 import { format, subDays } from 'date-fns';
 
 export default function YesterdayView() {
