@@ -286,7 +286,7 @@ export default function JournalView() {
 
                         <div className="mood-chart-container">
                             <div className="chart-label"><TrendingUp size={14} /> Mood Trend (Month)</div>
-                            <div style={{ height: 160, width: '100%' }}>
+                            <div style={{ height: 160, width: '100%', minWidth: 0 }}>
                                 <ResponsiveContainer>
                                     <LineChart data={analyticsData}>
                                         <Line

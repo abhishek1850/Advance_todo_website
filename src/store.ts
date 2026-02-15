@@ -826,7 +826,8 @@ export const useStore = create<AppState>()(
                 const snap = await getDocs(q);
                 const entries = snap.docs
                     .map(d => ({ id: d.id, ...d.data() } as JournalEntry))
-                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .filter(e => e.date) // Ensure date exists
+                    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
                     .slice(0, 60);
 
                 set({ journalEntries: entries });
