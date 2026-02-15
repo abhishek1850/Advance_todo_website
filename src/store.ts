@@ -646,9 +646,12 @@ export const useStore = create<AppState>()(
                         };
                     });
 
+                    const weekEnd = addDays(weekStart, 6);
+                    const weekLabel = `Week ${format(weekStart, 'w')} (${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d')}) ${format(weekEnd, 'yyyy')}`;
+
                     return {
                         weekStart: weekStartStr,
-                        weekLabel: `Week ${format(weekStart, 'w')} ${format(weekStart, 'yyyy')}`,
+                        weekLabel,
                         totalTasks,
                         completedTasks,
                         progressPercentage,
