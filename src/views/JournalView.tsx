@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
     Trophy, AlertTriangle, Lightbulb,
     Target, Save, TrendingUp,
-    Smile, Meh, Frown, Star, Edit3, ChevronRight
+    Smile, Meh, Frown, Star, Edit3, ChevronRight, X
 } from 'lucide-react';
 import { useStore } from '../store';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
@@ -135,13 +135,23 @@ export default function JournalView() {
                                     </div>
                                     <div style={{ display: 'flex', gap: 12 }}>
                                         {!isToday && (
-                                            <button className="btn-secondary btn-sm" onClick={() => setViewingDate(format(new Date(), 'yyyy-MM-dd'))}>
+                                            <motion.button
+                                                className="btn-secondary btn-sm"
+                                                onClick={() => setViewingDate(format(new Date(), 'yyyy-MM-dd'))}
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                            >
                                                 Back to Today
-                                            </button>
+                                            </motion.button>
                                         )}
-                                        <button className="btn-secondary btn-sm" onClick={() => setIsEditing(true)}>
+                                        <motion.button
+                                            className="btn-secondary btn-sm"
+                                            onClick={() => setIsEditing(true)}
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                        >
                                             <Edit3 size={14} /> Edit Entry
-                                        </button>
+                                        </motion.button>
                                     </div>
                                 </div>
 
@@ -240,7 +250,15 @@ export default function JournalView() {
                                         <div className="btn-glow" />
                                     </motion.button>
                                     {isToday && activeEntry && !isSaving && (
-                                        <button className="btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
+                                        <motion.button
+                                            className="btn-secondary"
+                                            onClick={() => setIsEditing(false)}
+                                            whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.08)' }}
+                                            whileTap={{ scale: 0.98 }}
+                                        >
+                                            <X size={16} />
+                                            Cancel
+                                        </motion.button>
                                     )}
                                 </div>
                             </div>
@@ -693,6 +711,34 @@ export default function JournalView() {
 
                 .recent-entries-list::-webkit-scrollbar { width: 4px; }
                 .recent-entries-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+                .btn-secondary {
+                    background: rgba(255, 255, 255, 0.03);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 12px;
+                    color: rgba(255, 255, 255, 0.6);
+                    padding: 0.75rem 1.5rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.5rem;
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                .btn-secondary:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: white;
+                    border-color: rgba(255, 255, 255, 0.15);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }
+
+                .btn-sm {
+                    padding: 0.5rem 1rem;
+                    font-size: 0.8rem;
+                    border-radius: 10px;
+                }
 
             `}</style>
         </div>
