@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import TaskCard from '../components/TaskCard';
 import { playSound } from '../lib/sounds';
 import ProgressRing from '../components/ProgressRing';
-import { DailyMotivation, StreakMilestone, ProductivityTip, getSmartGreeting } from '../components/MotivationEngine';
+import { DailyMotivation, StreakMilestone, ProductivityTip, getSmartGreeting, WeatherIcon } from '../components/MotivationEngine';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 // Animated counter hook
@@ -71,14 +71,13 @@ export default function Dashboard() {
                 <div>
                     <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, background: 'linear-gradient(to right, #fff, #a5a5a5)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                         {(() => {
-                            const greeting = getSmartGreeting(profile.name || 'Attacker');
-                            const firstSpace = greeting.indexOf(' ');
-                            if (firstSpace === -1) return greeting;
-                            const emoji = greeting.slice(0, firstSpace);
-                            const text = greeting.slice(firstSpace + 1);
+                            const displayName = useStore.getState().user?.displayName || (profile.name !== 'User' ? profile.name : '') || 'Attacker';
+                            const { text, type } = getSmartGreeting(displayName);
                             return (
                                 <>
-                                    <span style={{ WebkitTextFillColor: 'initial', marginRight: 12 }}>{emoji}</span>
+                                    <span style={{ WebkitTextFillColor: 'initial', marginRight: 12, display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle' }}>
+                                        <WeatherIcon type={type} size={32} />
+                                    </span>
                                     {text}
                                 </>
                             );

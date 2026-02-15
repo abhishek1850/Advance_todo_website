@@ -9,7 +9,8 @@ import { format } from 'date-fns';
 import { generateAIResponse } from '../lib/ai';
 
 export default function AssistantView() {
-    const { user, tasks, addTask, getStreak, pendingAssistantMessage, setPendingAssistantMessage } = useStore();
+    const { user, addTask, getStreak, pendingAssistantMessage, setPendingAssistantMessage, getTodaysTasks } = useStore();
+    const tasks = getTodaysTasks(); // Use today's tasks for context
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<AIChatMessage[]>([]);
     const [loading, setLoading] = useState(false);
@@ -140,7 +141,8 @@ export default function AssistantView() {
             estimatedMinutes: parseInt(task.estimatedTime) || 30,
             subtasks: [],
             tags: ['AI Suggested'],
-            recurrence: 'none'
+            recurrence: 'none',
+            type: 'daily' as const
         });
     };
 

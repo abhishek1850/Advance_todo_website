@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useStore } from '../store';
 import TaskCard from '../components/TaskCard';
 import ProgressRing from '../components/ProgressRing';
 import type { TaskPriority } from '../types';
 import { WeatherIcon } from '../components/MotivationEngine';
+import { format, subDays } from 'date-fns';
 
-export default function TodayView() {
-    const { getTodaysTasks, openTaskModal, getCompletionRate } = useStore();
+export default function YesterdayView() {
+    const { getYesterdayTasks } = useStore();
     const [search, setSearch] = useState('');
     const [filterPriority, setFilterPriority] = useState<TaskPriority | ''>('');
 
-    const tasks = getTodaysTasks();
+    const tasks = getYesterdayTasks();
     const filtered = tasks.filter(t => {
         if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
         if (filterPriority && t.priority !== filterPriority) return false;
@@ -21,22 +22,23 @@ export default function TodayView() {
 
     const incomplete = filtered.filter(t => !t.isCompleted);
     const completed = filtered.filter(t => t.isCompleted);
-    const rate = getCompletionRate('daily');
+
+    // Calculate completion rate manually for yesterday view
+    const rate = tasks.length > 0 ? Math.round((tasks.filter(t => t.isCompleted).length / tasks.length) * 100) : 0;
+
+    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
 
     return (
         <div className="page-content">
             <div className="view-header">
                 <div className="view-header-content">
-                    <h2 className="view-title">Today's Tasks</h2>
-                    <p className="view-subtitle">{incomplete.length} remaining • {completed.length} completed</p>
+                    <h2 className="view-title">Yesterday's Summary</h2>
+                    <p className="view-subtitle">{format(subDays(new Date(), 1), 'MMMM d, yyyy')} • {completed.length} completed / {tasks.length} total</p>
                 </div>
                 <div className="view-header-actions">
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <ProgressRing progress={rate} size={80} strokeWidth={6} />
                     </div>
-                    <button className="btn btn-primary" onClick={() => openTaskModal()}>
-                        <Plus size={16} style={{ marginRight: 4 }} /> Add Task
-                    </button>
                 </div>
             </div>
 
@@ -58,12 +60,12 @@ export default function TodayView() {
             {incomplete.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
                     <div className="task-list-header">
-                        <h3 className="task-list-title">To Do</h3>
+                        <h3 className="task-list-title">Missed / Incomplete</h3>
                         <span className="task-list-count">{incomplete.length} tasks</span>
                     </div>
                     <div className="task-list">
                         <AnimatePresence mode="popLayout">
-                            {incomplete.map((task) => <TaskCard key={task.id} task={task} />)}
+                            {incomplete.map((task) => <TaskCard key={task.id} task={task} date={yesterdayStr} />)}
                         </AnimatePresence>
                     </div>
                 </div>
@@ -78,7 +80,7 @@ export default function TodayView() {
                     </div>
                     <div className="task-list">
                         <AnimatePresence mode="popLayout">
-                            {completed.map((task) => <TaskCard key={task.id} task={task} />)}
+                            {completed.map((task) => <TaskCard key={task.id} task={task} date={yesterdayStr} />)}
                         </AnimatePresence>
                     </div>
                 </div>
@@ -87,12 +89,9 @@ export default function TodayView() {
             {/* Empty State */}
             {filtered.length === 0 && (
                 <motion.div className="empty-state" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <div className="empty-state-icon"><WeatherIcon type="sun" size={64} /></div>
-                    <div className="empty-state-title">No tasks for today</div>
-                    <div className="empty-state-text">Add daily tasks to start building your productivity streak!</div>
-                    <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => openTaskModal()}>
-                        <Plus size={16} style={{ marginRight: 4 }} /> Add Task
-                    </button>
+                    <div className="empty-state-icon"><WeatherIcon type="cloud-sun" size={64} /></div>
+                    <div className="empty-state-title">No tasks found for yesterday</div>
+                    <div className="empty-state-text">Check back tomorrow to see your daily history.</div>
                 </motion.div>
             )}
         </div>

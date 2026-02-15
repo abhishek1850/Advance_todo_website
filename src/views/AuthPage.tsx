@@ -67,7 +67,8 @@ export default function AuthPage() {
                     createdAt: new Date().toISOString(),
                     onboardingComplete: true, // Auto-onboarded
                     profile: newUserProfile,
-                    tasks: [],
+                    templates: [],
+                    instances: [],
                     completionHistory: []
                 });
             }
@@ -125,7 +126,8 @@ export default function AuthPage() {
                     createdAt: new Date().toISOString(),
                     onboardingComplete: true,
                     profile: newUserProfile,
-                    tasks: [],
+                    templates: [],
+                    instances: [],
                     completionHistory: []
                 });
 

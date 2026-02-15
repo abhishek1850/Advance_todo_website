@@ -4,6 +4,7 @@ import { X, Plus, Minus } from 'lucide-react';
 import { useStore } from '../store';
 import type { TaskHorizon, TaskPriority, EnergyLevel, RecurrencePattern } from '../types';
 import { format } from 'date-fns';
+import { WeatherIcon } from './MotivationEngine';
 
 const CATEGORIES = ['Work', 'Personal', 'Health', 'Learning', 'Finance', 'Social', 'Creative', 'Errands'];
 
@@ -54,6 +55,7 @@ export default function TaskModal() {
             recurrence, energyLevel, estimatedMinutes: Math.min(Math.max(estimatedMinutes, 5), 480),
             tags: tags.split(',').map(t => sanitize(t, 30)).filter(Boolean).slice(0, 10),
             subtasks: editingTask?.subtasks || [],
+            type: recurrence === 'daily' ? 'daily' : 'one-time' as 'daily' | 'one-time'
         };
         if (editingTask) {
             updateTask(editingTask.id, taskData);
@@ -93,7 +95,7 @@ export default function TaskModal() {
                                 <div className="horizon-selector">
                                     {(['daily', 'monthly', 'yearly'] as TaskHorizon[]).map(h => (
                                         <button key={h} className={`horizon-option ${horizon === h ? 'active' : ''}`} onClick={() => setHorizon(h)}>
-                                            <div className="horizon-option-icon">{h === 'daily' ? '☀️' : h === 'monthly' ? '📅' : '🎯'}</div>
+                                            <div className="horizon-option-icon">{h === 'daily' ? <WeatherIcon type="sun" size={24} /> : h === 'monthly' ? '📅' : '🎯'}</div>
                                             <div className="horizon-option-label">{h.charAt(0).toUpperCase() + h.slice(1)}</div>
                                         </button>
                                     ))}

@@ -6,9 +6,10 @@ import { format, parseISO, isPast, isToday } from 'date-fns';
 
 interface TaskCardProps {
     task: Task;
+    date?: string;
 }
 
-export default function TaskCard({ task }: TaskCardProps) {
+export default function TaskCard({ task, date }: TaskCardProps) {
     const { toggleTask, openTaskModal, deleteTask } = useStore();
 
     const isOverdue = task.dueDate && !task.isCompleted && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate));
@@ -31,7 +32,7 @@ export default function TaskCard({ task }: TaskCardProps) {
             <div className="task-card-content">
                 <motion.button
                     className={`task-checkbox ${task.isCompleted ? 'checked' : ''}`}
-                    onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
+                    onClick={(e) => { e.stopPropagation(); toggleTask(task.id, date); }}
                     whileTap={{ scale: 0.8 }}
                     whileHover={{ scale: 1.1 }}
                     transition={{ type: 'spring', stiffness: 400 }}

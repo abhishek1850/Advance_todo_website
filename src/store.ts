@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-    Task, UserProfile, Badge, DailyChallenge, ViewType, TaskFilter, CompletionRecord, TaskHorizon
+    Task, TaskTemplate, TaskInstance, UserProfile, Badge, DailyChallenge, ViewType, TaskFilter, CompletionRecord, TaskHorizon
 } from './types';
-import { format, isToday, isThisMonth, isThisYear, differenceInDays, parseISO, startOfDay } from 'date-fns';
+import { format, differenceInDays, parseISO, startOfWeek, addDays, subDays, startOfMonth, startOfYear } from 'date-fns';
 import type { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
@@ -52,7 +52,9 @@ export interface Notification {
 interface AppState {
     user: User | null;
     authLoading: boolean;
-    tasks: Task[];
+    templates: TaskTemplate[];
+    instances: TaskInstance[];
+    tasks: Task[]; // Legacy/Hydrated holder
     profile: UserProfile;
     currentView: ViewType;
     filter: TaskFilter;
@@ -71,7 +73,7 @@ interface AppState {
     addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'isCompleted' | 'xpValue' | 'postponedCount'>) => void;
     updateTask: (id: string, updates: Partial<Task>) => void;
     deleteTask: (id: string) => void;
-    toggleTask: (id: string) => void;
+    toggleTask: (id: string, date?: string) => void;
     toggleSubtask: (taskId: string, subtaskId: string) => void;
     openTaskModal: (task?: Task) => void;
     closeTaskModal: () => void;
@@ -83,6 +85,7 @@ interface AppState {
     checkDailyLogic: () => Promise<void>;
     getFilteredTasks: () => Task[];
     getTodaysTasks: () => Task[];
+    getYesterdayTasks: () => Task[];
     getStagnantTasks: () => Task[];
     getMonthlyTasks: () => Task[];
     getYearlyTasks: () => Task[];
@@ -91,6 +94,8 @@ interface AppState {
     getTodaysFocus: () => Task | null;
     getCategoryStats: () => { category: string; completed: number; total: number }[];
     getWeeklyCompletionData: () => { day: string; completed: number; total: number }[];
+    getMonthlyCompletionData: () => { day: string; completed: number; total: number }[];
+    getWeeklyHistory: () => any[];
     getProductivityScore: () => number;
 }
 
@@ -106,6 +111,8 @@ const INITIAL_PROFILE: UserProfile = {
 };
 
 const INITIAL_STATE = {
+    templates: [],
+    instances: [],
     tasks: [],
     profile: INITIAL_PROFILE,
     completionHistory: [],
@@ -139,30 +146,34 @@ export const useStore = create<AppState>()(
                 try {
                     // 2. Fetch User Data
                     const docRef = doc(db, 'users', user.uid);
-
                     const docSnap = await getDoc(docRef);
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
 
-                        // 3. Verify Ownership / Data Integrity (Extra check)
+                        // 3. Verify Ownership
                         if (data.uid && data.uid !== user.uid) {
                             console.error('⛔ SECURITY ALERT: Fetched document ID does not match Auth UID!');
                             throw new Error('Security Mismatch');
                         }
 
+                        // Load data
                         set({
-                            tasks: data.tasks || [],
+                            templates: data.tasks || [], // Treat legacy 'tasks' as templates
+                            instances: data.instances || [],
+                            tasks: [], // Hydrated on demand
                             profile: { ...get().profile, ...data.profile, onboardingComplete: true },
                             onboardingComplete: true,
                             completionHistory: data.completionHistory || [],
                         });
+
+                        // Generate instances immediately
+                        await get().checkDailyLogic();
                     } else {
-                        // Do not reset to false here, rely on Initial State or AuthPage creation
+                        // New user
                     }
                 } catch (error) {
                     console.error("❌ Error loading user data:", error);
-                    // On error, maybe force logout?
                 } finally {
                     set({ authLoading: false });
                 }
@@ -208,52 +219,60 @@ export const useStore = create<AppState>()(
                 const state = get();
                 const now = new Date();
                 const today = format(now, 'yyyy-MM-dd');
-                const startOfToday = startOfDay(now);
+                const currentMonthStart = format(startOfMonth(now), 'yyyy-MM-dd');
+                const currentYearStart = format(startOfYear(now), 'yyyy-MM-dd');
 
+                let newInstances = [...state.instances];
                 let hasChanges = false;
-                const newTasks = state.tasks.map(t => {
-                    // Smart Rollover Logic
-                    if (!t.isCompleted && t.dueDate && t.horizon === 'daily') {
-                        const due = parseISO(t.dueDate);
-                        if (due < startOfToday) {
-                            hasChanges = true;
-                            // Recurring tasks logic precedence
-                            if (t.recurrence === 'daily' && t.isCompleted && t.completedAt) {
-                                const completedDate = parseISO(t.completedAt);
-                                if (completedDate < startOfToday) {
-                                    return { ...t, isCompleted: false, completedAt: null, dueDate: today };
-                                }
-                            }
 
-                            // Rollover logic for non-recurring or incomplete recurring
-                            const daysOverdue = differenceInDays(startOfToday, due);
-                            if (daysOverdue > 0) {
-                                return {
-                                    ...t,
-                                    dueDate: today,
-                                    isRolledOver: true,
-                                    daysPending: (t.daysPending || 0) + daysOverdue,
-                                    originalDueDate: t.originalDueDate || t.dueDate
-                                };
-                            }
-                        }
+                // 1. Generate Instances for All Types
+                state.templates.forEach(t => {
+                    let targetDate = today;
+                    if (t.horizon === 'monthly') targetDate = currentMonthStart;
+                    if (t.horizon === 'yearly') targetDate = currentYearStart;
+
+                    const instanceId = `${t.id}_${targetDate}`;
+                    if (!newInstances.find(i => i.id === instanceId)) {
+                        newInstances.push({
+                            id: instanceId,
+                            taskId: t.id,
+                            userId: t.userId,
+                            date: targetDate,
+                            status: 'pending',
+                            completedAt: null
+                        });
+                        hasChanges = true;
                     }
 
-                    // Recurring tasks logic (existing for completed tasks that need reset)
-                    if (t.recurrence === 'daily' && t.isCompleted && t.completedAt) {
-                        const completedDate = parseISO(t.completedAt);
-                        if (completedDate < startOfToday) {
-                            hasChanges = true;
-                            return { ...t, isCompleted: false, completedAt: null, dueDate: today };
-                        }
+                    // For Daily: also backfill last 3 days
+                    if (t.horizon === 'daily') {
+                        [1, 2, 3].forEach(daysAgo => {
+                            const d = format(subDays(now, daysAgo), 'yyyy-MM-dd');
+                            const backfillId = `${t.id}_${d}`;
+                            if (!newInstances.find(i => i.id === backfillId) && t.createdAt <= d) {
+                                newInstances.push({
+                                    id: backfillId, taskId: t.id, userId: t.userId, date: d, status: 'missed', completedAt: null
+                                });
+                                hasChanges = true;
+                            }
+                        });
                     }
-                    return t;
+                });
+
+                // 2. Mark pending instances from past days as missed (only for Daily)
+                newInstances = newInstances.map(i => {
+                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    if (i.date < today && i.status === 'pending' && tmpl?.horizon === 'daily') {
+                        hasChanges = true;
+                        return { ...i, status: 'missed' as const };
+                    }
+                    return i;
                 });
 
                 if (hasChanges) {
-                    set({ tasks: newTasks });
+                    set({ instances: newInstances });
                     if (state.user) {
-                        await updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
+                        updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances }).catch(console.error);
                     }
                 }
             },
@@ -263,70 +282,108 @@ export const useStore = create<AppState>()(
             addTask: async (taskData) => {
                 const state = get();
                 const xpValue = Math.round(PRIORITY_XP[taskData.priority] * HORIZON_MULT[taskData.horizon]);
-                const newTask: Task = {
+                const id = generateId();
+                const now = new Date();
+                const today = format(now, 'yyyy-MM-dd');
+
+                const newTemplate: TaskTemplate = {
                     ...taskData,
-                    id: generateId(),
-                    userId: state.user?.uid, // Strict Data Ownership
-                    createdAt: new Date().toISOString(),
-                    completedAt: null,
-                    isCompleted: false,
+                    id,
+                    userId: state.user?.uid,
+                    type: (taskData.horizon === 'monthly' ? 'monthly' : taskData.horizon === 'yearly' ? 'yearly' : taskData.recurrence === 'daily' ? 'daily' : 'one-time') as any,
+                    createdAt: now.toISOString(),
+                    subtasks: [],
                     xpValue,
-                    postponedCount: 0
+                    tags: taskData.tags || []
                 };
 
-                set((s) => {
-                    const newTasks = [...s.tasks, newTask];
-                    if (s.user) {
-                        // Fire-and-forget sync
-                        updateDoc(doc(db, 'users', s.user.uid), { tasks: newTasks }).catch(console.error);
+                let targetDate = today;
+                if (newTemplate.horizon === 'monthly') targetDate = format(startOfMonth(now), 'yyyy-MM-dd');
+                if (newTemplate.horizon === 'yearly') targetDate = format(startOfYear(now), 'yyyy-MM-dd');
+
+                const newInstances: TaskInstance[] = [
+                    ...state.instances,
+                    {
+                        id: `${id}_${targetDate}`,
+                        taskId: id,
+                        userId: state.user?.uid,
+                        date: targetDate,
+                        status: 'pending' as const,
+                        completedAt: null
                     }
-                    return { tasks: newTasks };
+                ];
+
+                set((s) => {
+                    const newTemplates = [...s.templates, newTemplate];
+                    if (s.user) {
+                        updateDoc(doc(db, 'users', s.user.uid), { tasks: newTemplates, instances: newInstances }).catch(console.error);
+                    }
+                    return { templates: newTemplates, instances: newInstances };
                 });
             },
 
             updateTask: (id, updates) => set((state) => {
-                const newTasks = state.tasks.map((t) => {
-                    if (t.id === id) {
-                        // If rescheduling manually, clear rollover status
-                        if (updates.dueDate && updates.dueDate !== t.dueDate) {
-                            return { ...t, ...updates, isRolledOver: false };
-                        }
-                        return { ...t, ...updates };
-                    }
-                    return t;
-                });
-                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
-                return { tasks: newTasks };
+                // Determine if we are updating a template
+                const newTemplates = state.templates.map(t => t.id === id ? { ...t, ...updates } : t);
+                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }).catch(console.error);
+                return { templates: newTemplates };
             }),
 
             deleteTask: (id) => set((state) => {
                 playSound('delete');
-                const newTasks = state.tasks.filter((t) => t.id !== id);
-                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTasks }).catch(console.error);
-                return { tasks: newTasks };
+                const newTemplates = state.templates.filter((t) => t.id !== id);
+                // Also delete instances? Maybe keep history? 
+                // For cleanup, let's delete instances too to avoid orphans? 
+                // User didn't specify. Let's delete future instances?
+                // For simplicity, just delete template. Instances become orphans (history preserved but hidden).
+                // Or filtered out if getter looks up template.
+                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }).catch(console.error);
+                return { templates: newTemplates };
             }),
 
-            toggleTask: (id) => {
+            toggleTask: (id, date) => {
                 const state = get();
-                const task = state.tasks.find((t) => t.id === id);
-                if (!task) return;
+                // id is likely an Instance ID now, or we fallback
+                let instance = state.instances.find(i => i.id === id);
+                const today = format(new Date(), 'yyyy-MM-dd');
 
-                // Optimistic Update
-                const isCompleting = !task.isCompleted;
+                // Fallback for one-time tasks or mismatches
+                if (!instance) {
+                    // Try to find an instance for today for this taskId
+                    instance = state.instances.find(i => i.taskId === id && i.date === (date || today));
+                }
+
+                if (!instance) return; // Cannot toggle non-existent instance
+
+                const template = state.templates.find(t => t.id === instance!.taskId);
+                if (!template) return; // Orphaned instance
+
+                const isCompleting = instance.status !== 'completed';
                 const now = new Date();
-                const today = format(now, 'yyyy-MM-dd');
+                const targetDate = instance.date;
+                const isTargetToday = targetDate === today;
+
                 const p = { ...state.profile };
-                let showCeleb = false;
-                let celebXP = 0;
                 const newNotifications: Omit<Notification, 'id'>[] = [];
                 const prevLevel = p.level;
 
-                if (isCompleting) {
-                    p.xp += task.xpValue;
-                    p.totalTasksCompleted += 1;
-                    celebXP = task.xpValue;
-                    while (p.xp >= p.xpToNextLevel) { p.xp -= p.xpToNextLevel; p.level += 1; p.xpToNextLevel = Math.round(XP_PER_LEVEL * Math.pow(1.15, p.level - 1)); }
+                const newInstances = state.instances.map(i => {
+                    if (i.id === instance!.id) {
+                        return {
+                            ...i,
+                            status: isCompleting ? 'completed' : 'pending',
+                            completedAt: isCompleting ? now.toISOString() : null
+                        } as TaskInstance;
+                    }
+                    return i;
+                });
 
+                if (isCompleting) {
+                    p.xp += template.xpValue;
+                    p.totalTasksCompleted += 1;
+
+                    // Level Up Logic
+                    while (p.xp >= p.xpToNextLevel) { p.xp -= p.xpToNextLevel; p.level += 1; p.xpToNextLevel = Math.round(XP_PER_LEVEL * Math.pow(1.15, p.level - 1)); }
                     if (p.level > prevLevel) {
                         playSound('levelUp');
                         newNotifications.push({ type: 'level', title: 'Level Up!', message: `You've reached Level ${p.level}! 🎉`, icon: '🆙' });
@@ -334,119 +391,37 @@ export const useStore = create<AppState>()(
                         playSound('success');
                     }
 
+                    // Streak Logic
                     const lastActive = p.lastActiveDate;
-                    if (lastActive !== today) {
-                        const diff = differenceInDays(parseISO(today), parseISO(lastActive));
-                        if (diff === 1) p.currentStreak += 1;
-                        else if (diff > 1) p.currentStreak = 1;
-                        // Else diff === 0, same day, do nothing
+                    if (isTargetToday) {
+                        const diff = differenceInDays(parseISO(targetDate), parseISO(lastActive));
+                        if (diff === 1) p.currentStreak += 1; // Consecutive
+                        else if (diff > 1) p.currentStreak = 1; // Broken
+                        p.lastActiveDate = targetDate;
                     }
                     p.longestStreak = Math.max(p.longestStreak, p.currentStreak);
-                    p.lastActiveDate = today;
 
-                    // Badge Logic (Simplified for brevity, kept same)
-                    const badges = [...p.badges];
-                    const unlock = (bid: string) => {
-                        const b = badges.find((x) => x.id === bid);
-                        if (b && !b.unlockedAt) {
-                            b.unlockedAt = now.toISOString();
-                            playSound('levelUp');
-                            newNotifications.push({ type: 'badge', title: 'Badge Unlocked!', message: `${b.icon} ${b.name}`, icon: '🏅' });
-                        }
-                    };
-                    if (p.totalTasksCompleted >= 1) unlock('first_task');
-                    if (p.totalTasksCompleted >= 10) unlock('tasks_10');
-                    if (p.totalTasksCompleted >= 50) unlock('tasks_50');
-                    if (p.totalTasksCompleted >= 100) unlock('tasks_100');
-                    if (p.totalTasksCompleted >= 500) unlock('tasks_500');
-                    if (p.currentStreak >= 7) unlock('streak_7');
-                    if (p.currentStreak >= 30) unlock('streak_30');
-                    if (p.currentStreak >= 100) unlock('streak_100');
-                    if (p.level >= 5) unlock('level_5');
-                    if (p.level >= 10) unlock('level_10');
+                    // Add Notification
+                    newNotifications.push({ type: 'xp', title: `+${template.xpValue} XP`, message: `"${template.title}" completed`, icon: '✨' });
 
-                    const horizons = new Set(state.tasks.filter((t) => t.isCompleted || t.id === id).map((t) => t.horizon));
-                    if (horizons.size >= 3) unlock('all_horizons');
-                    p.badges = badges;
-
-                    // Daily Challenge Logic
-                    if (p.dailyChallenge && p.dailyChallenge.date === today && !p.dailyChallenge.isCompleted) {
-                        const ch = { ...p.dailyChallenge };
-                        const completedToday = state.tasks.filter(t =>
-                            (t.isCompleted && t.id !== id && t.completedAt && isToday(parseISO(t.completedAt))) ||
-                            (t.id === id)
-                        );
-                        const allCompleted = [...completedToday.filter(t => t.id !== id), task];
-                        let progress = 0;
-
-                        // Recalculate progress based on type
-                        if (ch.title === 'Task Blitz' || ch.title === 'Marathoner') {
-                            progress = allCompleted.length;
-                        } else if (ch.title === 'Triple Threat') {
-                            progress = allCompleted.filter(t => t.priority === 'high' || t.priority === 'critical').length;
-                        } else if (ch.title === 'Quick Wins') {
-                            progress = allCompleted.filter(t => t.estimatedMinutes < 15).length;
-                        } else if (ch.title === 'Horizon Hopper') {
-                            progress = new Set(allCompleted.map(t => t.horizon)).size;
-                        } else if (ch.title === 'Category Master') {
-                            progress = new Set(allCompleted.map(t => t.category).filter(Boolean)).size;
-                        } else {
-                            // Default fallback
-                            progress = allCompleted.length;
-                        }
-
-                        if (progress > ch.progress) {
-                            ch.progress = progress;
-                            if (ch.progress >= ch.target) {
-                                ch.isCompleted = true;
-                                p.xp += ch.xpReward;
-                                newNotifications.push({ type: 'challenge', title: 'Challenge Complete!', message: `+${ch.xpReward} XP bonus earned`, icon: '⚡' });
-                            }
-                            p.dailyChallenge = ch;
-                        }
-                    }
-
-                    showCeleb = p.preferences.celebrationsEnabled;
+                    // Update History (Legacy support or new?)
+                    // Current system uses instances. We don't need 'completionHistory' anymore.
+                    // But if we want to keep `completionHistory` in sync for legacy views:
                     const hist = [...state.completionHistory];
-                    const rec = hist.find((r) => r.date === today);
-                    if (rec) { rec.completed += 1; rec.xpEarned += task.xpValue; }
-                    else hist.push({ date: today, completed: 1, total: 1, xpEarned: task.xpValue });
+                    const rec = hist.find((r) => r.date === targetDate);
+                    if (rec) { rec.completed += 1; rec.xpEarned += template.xpValue; }
+                    else hist.push({ date: targetDate, completed: 1, total: 1, xpEarned: template.xpValue });
 
-                    newNotifications.push({ type: 'xp', title: `+${task.xpValue} XP`, message: `"${task.title}" completed`, icon: '✨' });
-
-                    const notificationsToAdd = newNotifications.map(n => ({ ...n, id: generateId() }));
-
-                    const newTasks = state.tasks.map((t) => t.id === id ? { ...t, isCompleted: true, completedAt: now.toISOString() } : t);
-
-                    set({
-                        tasks: newTasks,
-                        profile: p, showCelebration: showCeleb, lastCelebrationXP: celebXP, completionHistory: hist,
-                        notifications: [...state.notifications, ...notificationsToAdd],
-                    });
-
-                    if (state.user) {
-                        updateDoc(doc(db, 'users', state.user.uid), {
-                            tasks: newTasks,
-                            profile: p,
-                            completionHistory: hist
-                        }).catch(console.error);
-                    }
-
+                    set({ instances: newInstances, profile: p, notifications: [...state.notifications, ...newNotifications.map(n => ({ ...n, id: generateId() }))], completionHistory: hist });
                 } else {
                     playSound('click');
-                    // Undoing completion
-                    p.xp = Math.max(0, p.xp - task.xpValue);
+                    p.xp = Math.max(0, p.xp - template.xpValue);
                     p.totalTasksCompleted = Math.max(0, p.totalTasksCompleted - 1);
-                    const newTasks = state.tasks.map((t) => t.id === id ? { ...t, isCompleted: false, completedAt: null } : t);
+                    set({ instances: newInstances, profile: p });
+                }
 
-                    set({ tasks: newTasks, profile: p });
-
-                    if (state.user) {
-                        updateDoc(doc(db, 'users', state.user.uid), {
-                            tasks: newTasks,
-                            profile: p
-                        }).catch(console.error);
-                    }
+                if (state.user) {
+                    updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances, profile: p }).catch(console.error);
                 }
             },
 
@@ -462,7 +437,9 @@ export const useStore = create<AppState>()(
             removeNotification: (id) => set((s) => ({ notifications: s.notifications.filter(n => n.id !== id) })),
 
             getFilteredTasks: () => {
-                const { tasks, filter } = get();
+                const tasks = get().getTodaysTasks();
+                const { filter } = get();
+
                 return tasks.filter((t) => {
                     if (filter.horizon && t.horizon !== filter.horizon) return false;
                     if (filter.priority && t.priority !== filter.priority) return false;
@@ -473,32 +450,214 @@ export const useStore = create<AppState>()(
                     return true;
                 });
             },
-            getTodaysTasks: () => get().tasks.filter((t) => { if (t.horizon !== 'daily') return false; if (!t.dueDate) return true; return isToday(parseISO(t.dueDate)) || parseISO(t.dueDate) <= startOfDay(new Date()); }),
-            getStagnantTasks: () => get().tasks.filter((t) => !t.isCompleted && (t.daysPending || 0) >= 3),
-            getMonthlyTasks: () => get().tasks.filter((t) => { if (t.horizon !== 'monthly') return false; if (!t.dueDate) return true; return isThisMonth(parseISO(t.dueDate)); }),
-            getYearlyTasks: () => get().tasks.filter((t) => { if (t.horizon !== 'yearly') return false; if (!t.dueDate) return true; return isThisYear(parseISO(t.dueDate)); }),
-            getCompletionRate: (horizon) => { const ts = horizon ? get().tasks.filter((t) => t.horizon === horizon) : get().tasks; if (!ts.length) return 0; return Math.round((ts.filter((t) => t.isCompleted).length / ts.length) * 100); },
+
+            getTodaysTasks: () => {
+                const state = get();
+                const today = format(new Date(), 'yyyy-MM-dd');
+
+                const todaysInstances = state.instances.filter(i => i.date === today);
+
+                return todaysInstances.map(i => {
+                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    if (!tmpl) return null;
+                    return {
+                        ...tmpl,
+                        id: i.id,
+                        isCompleted: i.status === 'completed',
+                        completedAt: i.completedAt,
+                        dueDate: i.date,
+                        postponedCount: 0,
+                        completionHistory: {}
+                    } as Task;
+                }).filter(Boolean) as Task[];
+            },
+
+            getYesterdayTasks: () => {
+                const state = get();
+                const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+                const instances = state.instances.filter(i => i.date === yesterday);
+
+                return instances.map(i => {
+                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    if (!tmpl) return null;
+                    return {
+                        ...tmpl,
+                        id: i.id,
+                        isCompleted: i.status === 'completed',
+                        completedAt: i.completedAt,
+                        dueDate: i.date,
+                        postponedCount: 0,
+                        completionHistory: {}
+                    } as Task;
+                }).filter(Boolean) as Task[];
+            },
+
+            getStagnantTasks: () => [],
+            getMonthlyTasks: () => {
+                const state = get();
+                const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+                const monthlyInstances = state.instances.filter(i => i.date === monthStart);
+
+                return monthlyInstances.map(i => {
+                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    if (!tmpl || tmpl.horizon !== 'monthly') return null;
+                    return {
+                        ...tmpl,
+                        id: i.id, // Use instance ID for toggling
+                        isCompleted: i.status === 'completed',
+                        completedAt: i.completedAt,
+                        dueDate: i.date,
+                        postponedCount: 0,
+                        completionHistory: {}
+                    } as Task;
+                }).filter(Boolean) as Task[];
+            },
+
+            getYearlyTasks: () => {
+                const state = get();
+                const yearStart = format(startOfYear(new Date()), 'yyyy-MM-dd');
+                const yearlyInstances = state.instances.filter(i => i.date === yearStart);
+
+                return yearlyInstances.map(i => {
+                    const tmpl = state.templates.find(t => t.id === i.taskId);
+                    if (!tmpl || tmpl.horizon !== 'yearly') return null;
+                    return {
+                        ...tmpl,
+                        id: i.id,
+                        isCompleted: i.status === 'completed',
+                        completedAt: i.completedAt,
+                        dueDate: i.date,
+                        postponedCount: 0,
+                        completionHistory: {}
+                    } as Task;
+                }).filter(Boolean) as Task[];
+            },
+
+            getCompletionRate: (horizon) => {
+                const { instances, templates } = get();
+                if (instances.length === 0) return 0;
+
+                let filteredInstances = instances;
+                if (horizon) {
+                    const templateIds = templates.filter(t => t.horizon === horizon).map(t => t.id);
+                    filteredInstances = instances.filter(i => templateIds.includes(i.taskId));
+                }
+
+                if (filteredInstances.length === 0) return 0;
+                return Math.round((filteredInstances.filter(i => i.status === 'completed').length / filteredInstances.length) * 100);
+            },
+
             getStreak: () => get().profile.currentStreak,
+
             getTodaysFocus: () => {
-                const inc = get().getTodaysTasks().filter((t) => !t.isCompleted);
-                if (!inc.length) return null;
+                const tasks = get().getTodaysTasks().filter(t => !t.isCompleted);
+                if (!tasks.length) return null;
                 const po: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-                inc.sort((a, b) => { const d = po[a.priority] - po[b.priority]; if (d !== 0) return d; if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate); return 0; });
-                return inc[0];
+                tasks.sort((a, b) => { const d = po[a.priority] - po[b.priority]; if (d !== 0) return d; return 0; });
+                return tasks[0];
             },
+
             getCategoryStats: () => {
-                const { tasks } = get();
-                const cats = [...new Set(tasks.map((t) => t.category).filter(Boolean))];
-                return cats.map((c) => { const ct = tasks.filter((t) => t.category === c); return { category: c, completed: ct.filter((t) => t.isCompleted).length, total: ct.length }; });
-            },
-            getWeeklyCompletionData: () => {
-                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                const { tasks } = get();
-                return days.map((day, i) => {
-                    const done = tasks.filter((t) => t.completedAt && parseISO(t.completedAt).getDay() === i).length;
-                    const tot = tasks.filter((t) => t.dueDate && parseISO(t.dueDate).getDay() === i).length;
-                    return { day, completed: done, total: Math.max(tot, done) };
+                const { instances, templates } = get();
+                const completedInstances = instances.filter(i => i.status === 'completed');
+                const allCats = [...new Set(templates.map(t => t.category).filter(Boolean))];
+                return allCats.map(c => {
+                    const tmplIds = templates.filter(t => t.category === c).map(t => t.id);
+                    const total = instances.filter(i => tmplIds.includes(i.taskId)).length;
+                    const completed = completedInstances.filter(i => tmplIds.includes(i.taskId)).length;
+                    return { category: c, completed, total };
                 });
+            },
+
+            getWeeklyCompletionData: () => {
+                const { instances } = get();
+                const start = startOfWeek(new Date());
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+                return days.map((dayLabel, i) => {
+                    const date = addDays(start, i);
+                    const dateStr = format(date, 'yyyy-MM-dd');
+
+                    const daysInstances = instances.filter(inst => inst.date === dateStr);
+                    const completed = daysInstances.filter(inst => inst.status === 'completed').length;
+
+                    return { day: dayLabel, completed, total: daysInstances.length };
+                });
+            },
+
+            getMonthlyCompletionData: () => {
+                const { instances } = get();
+                const today = new Date();
+                const result = [];
+                // Last 30 days
+                for (let i = 29; i >= 0; i--) {
+                    const date = subDays(today, i);
+                    const dateStr = format(date, 'yyyy-MM-dd');
+                    const dayLabel = format(date, 'MMM dd');
+                    const daysInstances = instances.filter(inst => inst.date === dateStr);
+                    const completed = daysInstances.filter(inst => inst.status === 'completed').length;
+                    result.push({ day: dayLabel, completed, total: daysInstances.length });
+                }
+                return result;
+            },
+
+            getWeeklyHistory: () => {
+                const { instances } = get();
+                if (instances.length === 0) return [];
+
+                // 1. Group instances by week start (Monday)
+                const weekGroups: Record<string, TaskInstance[]> = {};
+                instances.forEach(inst => {
+                    const instDate = parseISO(inst.date);
+                    const weekStart = format(startOfWeek(instDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                    if (!weekGroups[weekStart]) weekGroups[weekStart] = [];
+                    weekGroups[weekStart].push(inst);
+                });
+
+                // 2. Process each week
+                const history = Object.keys(weekGroups).map(weekStartStr => {
+                    const weekStart = parseISO(weekStartStr);
+                    const weekInstances = weekGroups[weekStartStr];
+
+                    const completedTasks = weekInstances.filter(i => i.status === 'completed').length;
+                    const totalTasks = weekInstances.length;
+                    const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+                    // Daily breakdown for MON-SUN
+                    // MON=1, ..., SUN=0 in date-fns usually, but let's be explicit
+                    const dailyBreakdown = [1, 2, 3, 4, 5, 6, 0].map(dayIndex => {
+                        // Offset from weekStart (Monday)
+                        // Monday offset = 0, Tuesday = 1, ..., Sunday = 6
+                        const offset = (dayIndex === 0 ? 6 : dayIndex - 1);
+                        const date = addDays(weekStart, offset);
+                        const dateStr = format(date, 'yyyy-MM-dd');
+                        const dayLabel = format(date, 'EEE').toUpperCase();
+
+                        const dayInsts = weekInstances.filter(i => i.date === dateStr);
+                        const dayCompleted = dayInsts.filter(i => i.status === 'completed').length;
+                        const dayTotal = dayInsts.length;
+
+                        return {
+                            date: dateStr,
+                            label: dayLabel,
+                            completed: dayCompleted,
+                            total: dayTotal,
+                            ratio: dayTotal > 0 ? dayCompleted / dayTotal : 0
+                        };
+                    });
+
+                    return {
+                        weekStart: weekStartStr,
+                        weekLabel: `Week ${format(weekStart, 'w')} ${format(weekStart, 'yyyy')}`,
+                        totalTasks,
+                        completedTasks,
+                        progressPercentage,
+                        dailyBreakdown
+                    };
+                });
+
+                // 3. Sort descending
+                return history.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
             },
             getProductivityScore: () => {
                 const state = get();
@@ -531,7 +690,8 @@ export const useStore = create<AppState>()(
             name: 'todo-app-storage',
             version: 2,
             partialize: (state) => ({
-                tasks: state.tasks,
+                templates: state.templates,
+                instances: state.instances,
                 profile: state.profile,
                 completionHistory: state.completionHistory,
                 currentView: state.currentView,

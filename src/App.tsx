@@ -12,6 +12,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 // Lazy Load Views for Performance
 const Dashboard = lazy(() => import('./views/Dashboard'));
 const TodayView = lazy(() => import('./views/TodayView'));
+const YesterdayView = lazy(() => import('./views/YesterdayView'));
+const HistoryView = lazy(() => import('./views/HistoryView'));
 const MonthlyView = lazy(() => import('./views/MonthlyView'));
 const YearlyView = lazy(() => import('./views/YearlyView'));
 const AnalyticsView = lazy(() => import('./views/AnalyticsView'));
@@ -23,7 +25,7 @@ const FocusView = lazy(() => import('./views/FocusView'));
 
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { useSessionTimeout, getSmartGreeting } from './components/MotivationEngine';
+import { useSessionTimeout, getSmartGreeting, WeatherIcon } from './components/MotivationEngine';
 import FocusTimer from './components/FocusTimer';
 
 import type { ViewType } from './types';
@@ -31,6 +33,8 @@ import type { ViewType } from './types';
 const VIEW_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   today: "Today's Tasks",
+  yesterday: "Yesterday's Summary",
+  history: 'History',
   monthly: 'Monthly Goals',
   yearly: 'Yearly Vision',
   analytics: 'Analytics',
@@ -43,6 +47,7 @@ const VIEW_TITLES: Record<string, string> = {
 const VIEW_KEYS: Record<string, ViewType> = {
   '1': 'dashboard',
   '2': 'today',
+  '0': 'history',
   '3': 'monthly',
   '4': 'yearly',
   '5': 'analytics',
@@ -144,6 +149,8 @@ function App() {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
       case 'today': return <TodayView />;
+      case 'yesterday': return <YesterdayView />;
+      case 'history': return <HistoryView />;
       case 'monthly': return <MonthlyView />;
       case 'yearly': return <YearlyView />;
       case 'analytics': return <AnalyticsView />;
@@ -162,7 +169,17 @@ function App() {
         <header className="header">
           <div className="header-left">
             <div>
-              <p className="header-greeting">{getSmartGreeting(user?.displayName || (profile?.name !== 'User' ? profile?.name : '') || '')}</p>
+              <div className="header-greeting" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {(() => {
+                  const { text, type } = getSmartGreeting(user?.displayName || (profile?.name !== 'User' ? profile?.name : '') || '');
+                  return (
+                    <>
+                      <WeatherIcon type={type} size={20} />
+                      <span>{text}</span>
+                    </>
+                  );
+                })()}
+              </div>
               <h2 className="header-title">{VIEW_TITLES[currentView]}</h2>
               <p className="header-subtitle">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
             </div>

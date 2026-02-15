@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut, Download, Zap } from 'lucide-react';
+import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut, Download, Zap, History } from 'lucide-react';
 import { usePWA } from '../hooks/usePWA';
 import { useStore } from '../store';
 import { auth } from '../lib/firebase';
@@ -12,6 +12,8 @@ import ConfirmDialog from './ConfirmDialog';
 const navItems: { id: ViewType; label: string; icon: React.ReactNode; shortcut: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, shortcut: '1' },
     { id: 'today', label: "Today's Tasks", icon: <Sun size={20} />, shortcut: '2' },
+    { id: 'yesterday', label: 'Yesterday', icon: <History size={20} />, shortcut: '0' },
+    { id: 'history', label: 'History', icon: <BarChart3 size={20} />, shortcut: 'h' },
     { id: 'monthly', label: 'Monthly Goals', icon: <Calendar size={20} />, shortcut: '3' },
     { id: 'yearly', label: 'Yearly Vision', icon: <Target size={20} />, shortcut: '4' },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={20} />, shortcut: '5' },

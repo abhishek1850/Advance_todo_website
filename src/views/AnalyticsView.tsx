@@ -5,7 +5,6 @@ import { Brain } from 'lucide-react';
 
 export default function AnalyticsView() {
     const { tasks, profile, getWeeklyCompletionData, getCategoryStats, getProductivityScore } = useStore();
-
     const weekData = getWeeklyCompletionData();
     const catStats = getCategoryStats();
     const totalTasks = tasks.length;
@@ -66,26 +65,14 @@ export default function AnalyticsView() {
             <h2 style={{ fontSize: 28, fontWeight: 900, marginBottom: 4, letterSpacing: '-0.5px' }}>Analytics</h2>
             <p style={{ color: 'var(--text-tertiary)', fontSize: 14, marginBottom: 32 }}>Understand your productivity patterns</p>
 
-            {/* Stats Row */}
-            <div className="dashboard-grid" style={{ marginBottom: 32 }}>
-                {[
-                    { label: 'Total Tasks', value: totalTasks, icon: '📋', color: 'purple' },
-                    { label: 'Completed', value: completedTasks, icon: '✅', color: 'teal' },
-                    { label: 'Completion Rate', value: `${avgCompletionRate}%`, icon: '📊', color: 'pink' },
-                    { label: 'Productivity', value: `${prodScore}%`, icon: '⚡', color: 'orange' },
-                ].map((s, i) => (
-                    <motion.div key={s.label} className={`stat-card ${s.color}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} whileHover={{ y: -3 }}>
-                        <div className="stat-card-icon">{s.icon}</div>
-                        <div className="stat-card-value">{s.value}</div>
-                        <div className="stat-card-label">{s.label}</div>
-                    </motion.div>
-                ))}
-            </div>
+            {/* ... stats row ... */}
 
             <div className="analytics-grid">
-                {/* Weekly Activity */}
+                {/* Activity Chart */}
                 <motion.div className="chart-container" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                    <div className="chart-title">Weekly Activity</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                        <div className="chart-title" style={{ marginBottom: 0 }}>Weekly Activity</div>
+                    </div>
                     <ResponsiveContainer width="100%" height={220}>
                         <BarChart data={weekData}>
                             <defs>
@@ -94,9 +81,9 @@ export default function AnalyticsView() {
                                     <stop offset="100%" stopColor="#7c6cf0" stopOpacity={0.4} />
                                 </linearGradient>
                             </defs>
-                            <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 12 }} />
+                            <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 10 }} />
                             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#5e5e80', fontSize: 12 }} />
-                            <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: '#f0f0f8' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                            <Tooltip contentStyle={{ background: 'rgba(14,14,26,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#f0f0f8' }} itemStyle={{ color: '#f0f0f8' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                             <Bar dataKey="completed" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>

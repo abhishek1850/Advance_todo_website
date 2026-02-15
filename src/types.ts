@@ -3,30 +3,43 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
 export type EnergyLevel = 'low' | 'medium' | 'high';
 export type RecurrencePattern = 'none' | 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
 
-export interface Task {
+export interface TaskTemplate {
   id: string;
   userId?: string;
   title: string;
   description: string;
+  type: 'daily' | 'monthly' | 'yearly' | 'one-time';
   horizon: TaskHorizon;
   priority: TaskPriority;
   category: string;
-  dueDate: string;
-  createdAt: string;
-  completedAt: string | null;
-  isCompleted: boolean;
   recurrence: RecurrencePattern;
+  createdAt: string;
   energyLevel: EnergyLevel;
   estimatedMinutes: number;
   tags: string[];
   xpValue: number;
-  subtasks: Subtask[];
-  postponedCount: number;
-  isRolledOver?: boolean;
-  daysPending?: number;
-  originalDueDate?: string;
-  focusSessionsRequired?: number;
-  focusSessionsCompleted?: number;
+  subtasks: Subtask[]; // Templates for subtasks
+}
+
+export interface TaskInstance {
+  id: string; // Unique ID (e.g., templateId_date)
+  taskId: string; // Reference to TaskTemplate.id
+  userId?: string;
+  date: string; // YYYY-MM-DD
+  status: 'pending' | 'completed' | 'missed';
+  completedAt: string | null;
+  xpEarned?: number;
+}
+
+// Hydrated Task for UI (Combines Template + Instance)
+export interface Task extends TaskTemplate {
+  isCompleted: boolean; // Computed from instance status
+  dueDate: string; // Computed from instance date or template rule
+  completedAt: string | null; // From instance
+  daysPending?: number; // Computed
+  isRolledOver?: boolean; // Computed
+  completionHistory?: Record<string, boolean>; // Deprecated but kept for compatibility
+  postponedCount: number; // Kept for one-time tasks or specific instance logic
 }
 
 export interface Subtask {
@@ -101,7 +114,7 @@ export interface AIChatMessage {
   suggestedTasks?: any[]; // Keep flexible for now or define strict type if needed
 }
 
-export type ViewType = 'dashboard' | 'today' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup' | 'focus';
+export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup' | 'focus';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;
