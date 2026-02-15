@@ -108,11 +108,18 @@ export interface CompletionRecord {
 
 export interface AIChatMessage {
   id: string;
-  userId: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
-  suggestedTasks?: any[]; // Keep flexible for now or define strict type if needed
+  suggestedTasks?: any[];
+}
+
+export interface AIConversation {
+  id: string;
+  userId: string;
+  createdAt: string;
+  lastMessageAt: string;
+  title?: string;
 }
 
 export interface JournalEntry {

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
     Trophy, AlertTriangle, Lightbulb,
     Target, Save, TrendingUp,
-    Smile, Meh, Frown, Star, Edit3, ChevronRight, X
+    Smile, Meh, Frown, Star, Edit3, ChevronRight, X, Trash2
 } from 'lucide-react';
 import { useStore } from '../store';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
@@ -18,7 +18,7 @@ const moodEmojis = [
 ];
 
 export default function JournalView() {
-    const { journalEntries, addJournalEntry, updateJournalEntry, addNotification } = useStore();
+    const { journalEntries, addJournalEntry, updateJournalEntry, deleteJournalEntry, addNotification } = useStore();
     const [viewingDate, setViewingDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [showSuccess, setShowSuccess] = useState(false);
     const activeEntry = journalEntries.find(j => j.date === viewingDate);
@@ -327,18 +327,29 @@ export default function JournalView() {
                         <h3>Past Logs</h3>
                         <div className="recent-entries-list">
                             {journalEntries.map(entry => (
-                                <button
-                                    key={entry.id}
-                                    className={`recent-entry-item ${viewingDate === entry.date ? 'active' : ''}`}
-                                    onClick={() => setViewingDate(entry.date)}
-                                >
-                                    <div className="entry-dot" style={{ background: moodEmojis.find(m => m.value === entry.mood)?.color || 'var(--primary)' }} />
-                                    <div className="entry-info">
-                                        <span className="entry-date">{format(parseISO(entry.date), 'MMM dd')}</span>
-                                        <span className="entry-preview">{entry.wins?.substring(0, 30)}...</span>
-                                    </div>
-                                    <ChevronRight size={14} />
-                                </button>
+                                <div key={entry.id} className="recent-entry-wrapper">
+                                    <button
+                                        className={`recent-entry-item ${viewingDate === entry.date ? 'active' : ''}`}
+                                        onClick={() => setViewingDate(entry.date)}
+                                    >
+                                        <div className="entry-dot" style={{ background: moodEmojis.find(m => m.value === entry.mood)?.color || 'var(--primary)' }} />
+                                        <div className="entry-info">
+                                            <span className="entry-date">{format(parseISO(entry.date), 'MMM dd')}</span>
+                                            <span className="entry-preview">{entry.wins?.substring(0, 30)}...</span>
+                                        </div>
+                                        <ChevronRight size={14} className="chevron" />
+                                    </button>
+                                    <button
+                                        className="entry-delete-btn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (window.confirm('Erase this log entry?')) deleteJournalEntry(entry.id);
+                                        }}
+                                        title="Delete Entry"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
                             ))}
                             {journalEntries.length === 0 && (
                                 <p className="empty-text">No past logs yet.</p>
@@ -712,6 +723,41 @@ export default function JournalView() {
 
                 .recent-entries-list::-webkit-scrollbar { width: 4px; }
                 .recent-entries-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+                .recent-entry-wrapper {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+
+                .entry-delete-btn {
+                    position: absolute;
+                    right: 8px;
+                    opacity: 0;
+                    background: rgba(255, 82, 82, 0.1);
+                    border: 1px solid rgba(255, 82, 82, 0.2);
+                    color: #ff5252;
+                    padding: 6px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    z-index: 2;
+                }
+
+                .recent-entry-wrapper:hover .entry-delete-btn {
+                    opacity: 1;
+                }
+                
+                .recent-entry-wrapper:hover .chevron {
+                    opacity: 0;
+                }
+
+                .entry-delete-btn:hover {
+                    background: #ff5252;
+                    color: white;
+                    transform: scale(1.1);
+                }
 
                 .btn-secondary {
                     background: rgba(255, 255, 255, 0.03);

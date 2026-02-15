@@ -44,20 +44,24 @@ function sanitizeContext(context: any): any {
 }
 
 export const generateAIResponse = async (userMessage: string, context: any, userId?: string) => {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  const groqKey = import.meta.env.VITE_GROQ_API_KEY;
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY; // Support Gemini if available
+
+  const apiKey = groqKey || geminiKey;
+
   if (!apiKey) {
-    throw new Error("Missing API Key. Please set VITE_GROQ_API_KEY in .env");
+    throw new Error("Missing AI API Key (Groq or Gemini). Please set VITE_GROQ_API_KEY or VITE_GEMINI_API_KEY.");
   }
 
-  // Rate limit check
+  // Rate limit check: Max 10 calls per minute
   if (userId && !checkRateLimit(userId)) {
-    throw new Error("You're sending messages too fast. Please wait a moment before trying again.");
+    throw new Error("Operational capacity reached. Please wait 60 seconds before next inquiry.");
   }
 
   // Sanitize inputs
   const cleanMessage = sanitizeInput(userMessage);
-  if (!cleanMessage) {
-    throw new Error("Message cannot be empty.");
+  if (!cleanMessage || cleanMessage.length < 2) {
+    throw new Error("Inquiry too brief or empty. Please provide more tactical context.");
   }
 
   const safeContext = sanitizeContext(context);

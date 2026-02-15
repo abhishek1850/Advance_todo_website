@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-    Task, TaskTemplate, TaskInstance, UserProfile, Badge, DailyChallenge, ViewType, TaskFilter, CompletionRecord, TaskHorizon, JournalEntry
+    Task, TaskTemplate, TaskInstance, UserProfile, Badge, DailyChallenge, ViewType, TaskFilter, CompletionRecord, TaskHorizon, JournalEntry, AIConversation, AIChatMessage
 } from './types';
 import { format, differenceInDays, parseISO, startOfWeek, addDays, subDays, startOfMonth, startOfYear, getWeek } from 'date-fns';
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, orderBy, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { playSound } from './lib/sounds';
+import { generateAIResponse } from './lib/ai';
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 const XP_PER_LEVEL = 500;
 const PRIORITY_XP: Record<string, number> = { low: 10, medium: 20, high: 35, critical: 50 };
@@ -123,7 +124,16 @@ interface AppState {
     journalEntries: JournalEntry[];
     addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'xpEarned' | 'weekNumber'>) => Promise<void>;
     updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
+    deleteJournalEntry: (id: string) => Promise<void>;
     fetchJournalEntries: () => Promise<void>;
+    conversations: AIConversation[];
+    activeConversationMessages: AIChatMessage[];
+    activeConversationId: string | null;
+    fetchConversations: () => Promise<void>;
+    fetchMessages: (conversationId: string) => Promise<void>;
+    setActiveConversation: (id: string | null) => void;
+    sendAssistantMessage: (content: string, context: any) => Promise<void>;
+    clearConversation: (id: string) => Promise<void>;
 }
 
 const INITIAL_PROFILE: UserProfile = {
@@ -152,6 +162,9 @@ const INITIAL_STATE = {
     filter: {},
     currentView: 'dashboard' as ViewType,
     journalEntries: [],
+    conversations: [],
+    activeConversationMessages: [],
+    activeConversationId: null,
 };
 
 export const useStore = create<AppState>()(
@@ -807,11 +820,23 @@ export const useStore = create<AppState>()(
                     ...updates,
                     updatedAt: serverTimestamp()
                 };
-                await setDoc(journalRef, updateData, { merge: true });
+                await updateDoc(journalRef, updateData);
 
                 set({
                     journalEntries: journalEntries.map(j => j.id === id ? { ...j, ...updates } : j)
                 });
+            },
+
+            deleteJournalEntry: async (id: string) => {
+                const { journalEntries } = get();
+                try {
+                    await deleteDoc(doc(db, 'journal_entries', id));
+                    set({
+                        journalEntries: journalEntries.filter(j => j.id !== id)
+                    });
+                } catch (error) {
+                    console.error("Error deleting journal entry:", error);
+                }
             },
 
             fetchJournalEntries: async () => {
@@ -827,7 +852,18 @@ export const useStore = create<AppState>()(
 
                     const snap = await getDocs(q);
                     const entries = snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
-                    set({ journalEntries: entries.slice(0, 60) });
+
+                    // Deduplicate by date (keep latest one if multiple exist)
+                    const uniqueEntries: JournalEntry[] = [];
+                    const seenDates = new Set();
+                    entries.forEach(e => {
+                        if (!seenDates.has(e.date)) {
+                            uniqueEntries.push(e);
+                            seenDates.add(e.date);
+                        }
+                    });
+
+                    set({ journalEntries: uniqueEntries.slice(0, 60) });
                 } catch (error) {
                     console.warn("Index not ready or query error, falling back to local sort", error);
                     const qBasic = query(
@@ -838,9 +874,163 @@ export const useStore = create<AppState>()(
                     const entries = snap.docs
                         .map(d => ({ id: d.id, ...d.data() } as JournalEntry))
                         .filter(e => e.date) // Ensure date exists
-                        .sort((a, b) => b.date.localeCompare(a.date))
-                        .slice(0, 60);
-                    set({ journalEntries: entries });
+                        .sort((a, b) => {
+                            // Sort by date desc, then by createdAt desc for same date
+                            if (b.date !== a.date) return b.date.localeCompare(a.date);
+                            return (b.createdAt || '').localeCompare(a.createdAt || '');
+                        });
+
+                    const uniqueEntries: JournalEntry[] = [];
+                    const seenDates = new Set();
+                    entries.forEach(e => {
+                        if (!seenDates.has(e.date)) {
+                            uniqueEntries.push(e);
+                            seenDates.add(e.date);
+                        }
+                    });
+
+                    set({ journalEntries: uniqueEntries.slice(0, 60) });
+                }
+            },
+
+            fetchConversations: async () => {
+                const { user } = get();
+                if (!user) return;
+                try {
+                    const q = query(
+                        collection(db, 'ai_conversations'),
+                        where('userId', '==', user.uid),
+                        orderBy('lastMessageAt', 'desc')
+                    );
+                    const snap = await getDocs(q);
+                    const convs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AIConversation));
+                    set({ conversations: convs });
+
+                    if (get().activeConversationId) {
+                        await get().fetchMessages(get().activeConversationId!);
+                    }
+                } catch (e) {
+                    console.error("Error fetching conversations:", e);
+                    const qBasic = query(collection(db, 'ai_conversations'), where('userId', '==', user.uid));
+                    const snap = await getDocs(qBasic);
+                    const convs = snap.docs
+                        .map(d => ({ id: d.id, ...d.data() } as AIConversation))
+                        .sort((a, b) => (b.lastMessageAt || '').localeCompare(a.lastMessageAt || ''));
+                    set({ conversations: convs });
+                }
+            },
+
+            fetchMessages: async (conversationId) => {
+                try {
+                    const q = query(
+                        collection(db, 'ai_conversations', conversationId, 'messages'),
+                        orderBy('createdAt', 'asc')
+                    );
+                    const snap = await getDocs(q);
+                    const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AIChatMessage));
+                    set({ activeConversationMessages: msgs });
+                } catch (e) {
+                    console.error("Error fetching messages:", e);
+                    const qBasic = query(collection(db, 'ai_conversations', conversationId, 'messages'));
+                    const snap = await getDocs(qBasic);
+                    const msgs = snap.docs
+                        .map(d => ({ id: d.id, ...d.data() } as AIChatMessage))
+                        .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+                    set({ activeConversationMessages: msgs });
+                }
+            },
+
+            setActiveConversation: (id) => {
+                set({ activeConversationId: id });
+                if (id) {
+                    get().fetchMessages(id);
+                } else {
+                    set({ activeConversationMessages: [] });
+                }
+            },
+
+            sendAssistantMessage: async (userMsg, context) => {
+                const { user, activeConversationId, conversations, activeConversationMessages } = get();
+                if (!user) return;
+
+                let convId = activeConversationId;
+                const now = new Date().toISOString();
+
+                try {
+                    if (!convId) {
+                        const newConv: Omit<AIConversation, 'id'> = {
+                            userId: user.uid,
+                            createdAt: now,
+                            lastMessageAt: now,
+                            title: userMsg.slice(0, 40) + (userMsg.length > 40 ? '...' : '')
+                        };
+                        const convRef = await addDoc(collection(db, 'ai_conversations'), newConv);
+                        convId = convRef.id;
+                        set({
+                            activeConversationId: convId,
+                            conversations: [{ id: convId, ...newConv } as AIConversation, ...conversations]
+                        });
+                    }
+
+                    const userMessageData: Omit<AIChatMessage, 'id'> = {
+                        role: 'user',
+                        content: userMsg,
+                        createdAt: now
+                    };
+                    const userMsgRef = await addDoc(collection(db, 'ai_conversations', convId, 'messages'), userMessageData);
+                    const userMsgObj = { id: userMsgRef.id, ...userMessageData } as AIChatMessage;
+
+                    set({ activeConversationMessages: [...activeConversationMessages, userMsgObj] });
+
+                    const data = await generateAIResponse(userMsg, context, user.uid);
+                    if (!data) throw new Error("No response from AI");
+
+                    const assistantMessageData: Omit<AIChatMessage, 'id'> = {
+                        role: 'assistant',
+                        content: data.reflection + '\n\n' + data.focusAdvice,
+                        suggestedTasks: data.suggestedTasks,
+                        createdAt: new Date().toISOString()
+                    };
+                    const assistantMsgRef = await addDoc(collection(db, 'ai_conversations', convId, 'messages'), assistantMessageData);
+                    const assistantMsgObj = { id: assistantMsgRef.id, ...assistantMessageData } as AIChatMessage;
+
+                    await setDoc(doc(db, 'ai_conversations', convId), {
+                        lastMessageAt: assistantMessageData.createdAt
+                    }, { merge: true });
+
+                    set({
+                        activeConversationMessages: [...get().activeConversationMessages, assistantMsgObj],
+                        conversations: get().conversations.map(c => c.id === convId ? { ...c, lastMessageAt: assistantMessageData.createdAt } : c)
+                    });
+
+                } catch (error: any) {
+                    console.error("AI Chat Error:", error);
+                    get().addNotification({
+                        title: 'A.I. Error',
+                        message: error.message || "Failed to get AI response.",
+                        type: 'info',
+                        icon: '🤖'
+                    });
+                    throw error;
+                }
+            },
+
+            clearConversation: async (id) => {
+                const { conversations, activeConversationId } = get();
+                try {
+                    const msgsSnap = await getDocs(collection(db, 'ai_conversations', id, 'messages'));
+                    const batch = writeBatch(db);
+                    msgsSnap.docs.forEach(d => batch.delete(d.ref));
+                    batch.delete(doc(db, 'ai_conversations', id));
+                    await batch.commit();
+
+                    set({
+                        conversations: conversations.filter(c => c.id !== id),
+                        activeConversationId: activeConversationId === id ? null : activeConversationId,
+                        activeConversationMessages: activeConversationId === id ? [] : get().activeConversationMessages
+                    });
+                } catch (e) {
+                    console.error("Error clearing conversation:", e);
                 }
             },
         }),
@@ -853,7 +1043,6 @@ export const useStore = create<AppState>()(
                 profile: state.profile,
                 completionHistory: state.completionHistory,
                 currentView: state.currentView,
-                // Don't persist user object as it's non-serializable and managed by Firebase SDK
             }),
         }
     )
