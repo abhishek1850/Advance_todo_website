@@ -323,22 +323,31 @@ export const useStore = create<AppState>()(
             },
 
             updateTask: (id, updates) => set((state) => {
-                // Determine if we are updating a template
-                const newTemplates = state.templates.map(t => t.id === id ? { ...t, ...updates } : t);
+                // Determine if 'id' is an Instance ID or Template ID
+                const instance = state.instances.find(i => i.id === id);
+                const templateId = instance ? instance.taskId : id;
+
+                const newTemplates = state.templates.map(t => t.id === templateId ? { ...t, ...updates } : t);
                 if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }).catch(console.error);
                 return { templates: newTemplates };
             }),
 
             deleteTask: (id) => set((state) => {
                 playSound('delete');
-                const newTemplates = state.templates.filter((t) => t.id !== id);
-                // Also delete instances? Maybe keep history? 
-                // For cleanup, let's delete instances too to avoid orphans? 
-                // User didn't specify. Let's delete future instances?
-                // For simplicity, just delete template. Instances become orphans (history preserved but hidden).
-                // Or filtered out if getter looks up template.
-                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }).catch(console.error);
-                return { templates: newTemplates };
+                const instance = state.instances.find(i => i.id === id);
+                const templateId = instance ? instance.taskId : id;
+
+                const newTemplates = state.templates.filter((t) => t.id !== templateId);
+                // Also cleanup instances for this task to avoid clutter
+                const newInstances = state.instances.filter((i) => i.taskId !== templateId);
+
+                if (state.user) {
+                    updateDoc(doc(db, 'users', state.user.uid), {
+                        tasks: newTemplates,
+                        instances: newInstances
+                    }).catch(console.error);
+                }
+                return { templates: newTemplates, instances: newInstances };
             }),
 
             toggleTask: (id, date) => {
