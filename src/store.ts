@@ -94,11 +94,11 @@ interface AppState {
     setView: (view: ViewType | 'complete-signup') => void;
     completeOnboarding: (data: { username: string; name: string }) => Promise<void>;
     setFilter: (filter: TaskFilter) => void;
-    addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'isCompleted' | 'xpValue' | 'postponedCount'>) => void;
-    updateTask: (id: string, updates: Partial<Task>) => void;
-    deleteTask: (id: string) => void;
-    toggleTask: (id: string, date?: string) => void;
-    toggleSubtask: (taskId: string, subtaskId: string) => void;
+    addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'isCompleted' | 'xpValue' | 'postponedCount'>) => Promise<void>;
+    updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+    deleteTask: (id: string) => Promise<void>;
+    toggleTask: (id: string, date?: string) => Promise<void>;
+    toggleSubtask: (taskId: string, subtaskId: string) => Promise<void>;
     openTaskModal: (task?: Task) => void;
     closeTaskModal: () => void;
     dismissCelebration: () => void;
@@ -175,22 +175,30 @@ export const useStore = create<AppState>()(
             ...INITIAL_STATE,
 
             setUser: async (user) => {
+                console.log("🔄 setUser triggered for:", user?.uid);
                 if (!user) {
+                    console.log("📤 Logging out - clearing state");
                     set({ user: null, ...INITIAL_STATE, authLoading: false });
-                    localStorage.removeItem('todo-app-storage'); // Hard clear
+                    localStorage.removeItem('todo-app-storage');
                     return;
                 }
 
-                // 1. CLEAR STATE IMMEDIATELY to prevent data leak from previous user
+                // 1. RESET STATE to initial before loading to prevent stale data
+                console.log("🧹 Resetting state for fresh fetch...");
                 set({ user, ...INITIAL_STATE, authLoading: true });
 
                 try {
                     // 2. Fetch User Data
+                    console.log("📡 Fetching user data from Firestore...");
                     const docRef = doc(db, 'users', user.uid);
                     const docSnap = await getDoc(docRef);
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
+                        console.log("✅ Firestore data received:", {
+                            templatesCount: data.tasks?.length || 0,
+                            instancesCount: data.instances?.length || 0
+                        });
 
                         // 3. Verify Ownership
                         if (data.uid && data.uid !== user.uid) {
@@ -198,9 +206,9 @@ export const useStore = create<AppState>()(
                             throw new Error('Security Mismatch');
                         }
 
-                        // Load data
+                        // 4. Update State - Mapping 'tasks' to 'templates'
                         set({
-                            templates: data.tasks || [], // Treat legacy 'tasks' as templates
+                            templates: data.tasks || [],
                             instances: data.instances || [],
                             tasks: [], // Hydrated on demand
                             profile: { ...get().profile, ...data.profile, onboardingComplete: true },
@@ -208,16 +216,19 @@ export const useStore = create<AppState>()(
                             completionHistory: data.completionHistory || [],
                         });
 
+                        console.log("💾 State updated from Firestore. Templates:", get().templates.length);
+
                         // Generate instances immediately
                         await get().checkDailyLogic();
                         await get().fetchJournalEntries();
                     } else {
-                        // New user
+                        console.log("✨ New user detected (no Firestore doc yet)");
                     }
                 } catch (error) {
-                    console.error("❌ Error loading user data:", error);
+                    console.error("❌ Error loading user data from Firestore:", error);
                 } finally {
                     set({ authLoading: false });
+                    console.log("🕒 Auth loading finished.");
                 }
             },
 
@@ -225,6 +236,8 @@ export const useStore = create<AppState>()(
                 const state = get();
                 const user = state.user;
                 if (!user) return;
+
+                console.log("🚀 Completing onboarding for:", username);
 
                 const newUserProfile: UserProfile = {
                     ...state.profile,
@@ -243,16 +256,22 @@ export const useStore = create<AppState>()(
                     createdAt: new Date().toISOString(),
                     onboardingComplete: true,
                     profile: newUserProfile,
-                    tasks: state.tasks,
+                    tasks: state.templates, // ✅ FIX: Use templates, not tasks
+                    instances: state.instances,
                     completionHistory: state.completionHistory
                 };
 
-                await setDoc(doc(db, 'users', user.uid), userDoc);
-                set({
-                    profile: newUserProfile,
-                    onboardingComplete: true,
-                    currentView: 'dashboard'
-                });
+                try {
+                    await setDoc(doc(db, 'users', user.uid), userDoc);
+                    console.log("✅ Onboarding document created in Firestore");
+                    set({
+                        profile: newUserProfile,
+                        onboardingComplete: true,
+                        currentView: 'dashboard'
+                    });
+                } catch (error) {
+                    console.error("❌ Firestore write failed during onboarding:", error);
+                }
             },
             setAuthLoading: (loading) => set({ authLoading: loading }),
             pendingAssistantMessage: undefined,
@@ -316,7 +335,10 @@ export const useStore = create<AppState>()(
                 if (hasChanges) {
                     set({ instances: newInstances });
                     if (state.user) {
-                        updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances }).catch(console.error);
+                        console.log("📡 Updating instances in Firestore after daily logic...");
+                        updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances })
+                            .then(() => console.log("✅ Firestore instances updated."))
+                            .catch(error => console.error("Firestore write failed:", error));
                     }
                 }
             },
@@ -329,6 +351,8 @@ export const useStore = create<AppState>()(
                 const id = generateId();
                 const now = new Date();
                 const today = format(now, 'yyyy-MM-dd');
+
+                console.log("📝 Adding goal task:", taskData.title);
 
                 const newTemplate: TaskTemplate = {
                     ...taskData,
@@ -357,30 +381,59 @@ export const useStore = create<AppState>()(
                     }
                 ];
 
-                set((s) => {
-                    const newTemplates = [...s.templates, newTemplate];
-                    if (s.user) {
-                        updateDoc(doc(db, 'users', s.user.uid), { tasks: newTemplates, instances: newInstances }).catch(console.error);
+                const newTemplates = [...state.templates, newTemplate];
+
+                // 1. Update Local State
+                set({ templates: newTemplates, instances: newInstances });
+                console.log("💾 Local state updated. Templates count:", get().templates.length);
+
+                // 2. Persist to Firestore immediately
+                if (state.user) {
+                    console.log("📡 Saving new task to Firestore...");
+                    try {
+                        await updateDoc(doc(db, 'users', state.user.uid), {
+                            tasks: newTemplates,
+                            instances: newInstances
+                        });
+                        console.log("✅ Successfully stored in Firestore.");
+                    } catch (error) {
+                        console.error("Firestore write failed:", error);
                     }
-                    return { templates: newTemplates, instances: newInstances };
-                });
+                } else {
+                    console.warn("⚠️ No user logged in, task only stored locally.");
+                }
             },
 
-            updateTask: (id, updates) => set((state) => {
+            updateTask: async (id, updates) => {
+                const state = get();
                 // Determine if 'id' is an Instance ID or Template ID
                 const instance = state.instances.find(i => i.id === id);
                 const templateId = instance ? instance.taskId : id;
 
                 const newTemplates = state.templates.map(t => t.id === templateId ? { ...t, ...updates } : t);
-                if (state.user) updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }).catch(console.error);
-                return { templates: newTemplates };
-            }),
 
-            deleteTask: (id) => set((state) => {
+                // Update Local State
+                set({ templates: newTemplates });
+
+                if (state.user) {
+                    console.log("📡 Updating task in Firestore...");
+                    try {
+                        await updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates });
+                        console.log("✅ Firestore update successful.");
+                    } catch (error) {
+                        console.error("Firestore write failed:", error);
+                    }
+                }
+            },
+
+            deleteTask: async (id) => {
                 playSound('delete');
+                const state = get();
                 const instance = state.instances.find(i => i.id === id);
                 const templateId = instance ? instance.taskId : id;
                 const today = format(new Date(), 'yyyy-MM-dd');
+
+                console.log("🗑️ Deleting task:", templateId);
 
                 // Soft delete: Mark template as archived
                 const newTemplates = state.templates.map(t =>
@@ -392,16 +445,23 @@ export const useStore = create<AppState>()(
                     !(i.taskId === templateId && i.date >= today)
                 );
 
-                if (state.user) {
-                    updateDoc(doc(db, 'users', state.user.uid), {
-                        tasks: newTemplates,
-                        instances: newInstances
-                    }).catch(console.error);
-                }
-                return { templates: newTemplates, instances: newInstances };
-            }),
+                set({ templates: newTemplates, instances: newInstances });
 
-            toggleTask: (id, date) => {
+                if (state.user) {
+                    console.log("📡 Deleting task from Firestore...");
+                    try {
+                        await updateDoc(doc(db, 'users', state.user.uid), {
+                            tasks: newTemplates,
+                            instances: newInstances
+                        });
+                        console.log("✅ Firestore deletion successful.");
+                    } catch (error) {
+                        console.error("Firestore write failed:", error);
+                    }
+                }
+            },
+
+            toggleTask: async (id, date) => {
                 const state = get();
                 // id is likely an Instance ID now, or we fallback
                 let instance = state.instances.find(i => i.id === id);
@@ -425,7 +485,6 @@ export const useStore = create<AppState>()(
 
                 const p = { ...state.profile };
                 const newNotifications: Omit<Notification, 'id'>[] = [];
-                const prevLevel = p.level;
 
                 const newInstances = state.instances.map(i => {
                     if (i.id === instance!.id) {
@@ -443,13 +502,14 @@ export const useStore = create<AppState>()(
                     p.totalTasksCompleted += 1;
 
                     // Level Up Logic
-                    while (p.xp >= p.xpToNextLevel) { p.xp -= p.xpToNextLevel; p.level += 1; p.xpToNextLevel = Math.round(XP_PER_LEVEL * Math.pow(1.15, p.level - 1)); }
-                    if (p.level > prevLevel) {
+                    while (p.xp >= p.xpToNextLevel) {
+                        p.xp -= p.xpToNextLevel;
+                        p.level += 1;
+                        p.xpToNextLevel = Math.round(XP_PER_LEVEL * Math.pow(1.15, p.level - 1));
                         playSound('levelUp');
                         newNotifications.push({ type: 'level', title: 'Level Up!', message: `You've reached Level ${p.level}! 🎉`, icon: '🆙' });
-                    } else {
-                        playSound('success');
                     }
+                    if (newNotifications.length === 0) playSound('success');
 
                     // Streak Logic
                     const lastActive = p.lastActiveDate;
@@ -464,13 +524,15 @@ export const useStore = create<AppState>()(
                     // Add Notification
                     newNotifications.push({ type: 'xp', title: `+${template.xpValue} XP`, message: `"${template.title}" completed`, icon: '✨' });
 
-                    // Update History (Legacy support or new?)
-                    // Current system uses instances. We don't need 'completionHistory' anymore.
-                    // But if we want to keep `completionHistory` in sync for legacy views:
+                    // Update History
                     const hist = [...state.completionHistory];
                     const rec = hist.find((r) => r.date === targetDate);
-                    if (rec) { rec.completed += 1; rec.xpEarned += template.xpValue; }
-                    else hist.push({ date: targetDate, completed: 1, total: 1, xpEarned: template.xpValue });
+                    if (rec) {
+                        rec.completed += 1;
+                        rec.xpEarned += template.xpValue;
+                    } else {
+                        hist.push({ date: targetDate, completed: 1, total: 1, xpEarned: template.xpValue });
+                    }
 
                     set({ instances: newInstances, profile: p, notifications: [...state.notifications, ...newNotifications.map(n => ({ ...n, id: generateId() }))], completionHistory: hist });
                 } else {
@@ -481,13 +543,44 @@ export const useStore = create<AppState>()(
                 }
 
                 if (state.user) {
-                    updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances, profile: p }).catch(console.error);
+                    console.log("📡 Toggling task in Firestore...");
+                    try {
+                        await updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances, profile: p });
+                        console.log("✅ Firestore toggle successful.");
+                    } catch (error) {
+                        console.error("Firestore write failed:", error);
+                    }
                 }
             },
 
-            toggleSubtask: (taskId, subtaskId) => set((s) => ({
-                tasks: s.tasks.map((t) => t.id === taskId ? { ...t, subtasks: t.subtasks.map((st) => st.id === subtaskId ? { ...st, isCompleted: !st.isCompleted } : st) } : t),
-            })),
+            toggleSubtask: async (taskId, subtaskId) => {
+                const state = get();
+                const instance = state.instances.find(i => i.id === taskId);
+                const templateId = instance ? instance.taskId : taskId;
+
+                const newTemplates = state.templates.map((t) =>
+                    t.id === templateId
+                        ? {
+                            ...t,
+                            subtasks: t.subtasks.map((st) =>
+                                st.id === subtaskId ? { ...st, isCompleted: !st.isCompleted } : st
+                            )
+                        }
+                        : t
+                );
+
+                set({ templates: newTemplates });
+
+                if (state.user) {
+                    console.log("📡 Updating subtask in Firestore...");
+                    try {
+                        await updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates });
+                        console.log("✅ Firestore subtask update successful.");
+                    } catch (error) {
+                        console.error("Firestore write failed:", error);
+                    }
+                }
+            },
 
             openTaskModal: (task) => set({ isTaskModalOpen: true, editingTask: task || null }),
             closeTaskModal: () => set({ isTaskModalOpen: false, editingTask: null }),
