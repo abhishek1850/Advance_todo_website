@@ -98,14 +98,18 @@ function WeeklyCard({ week, index }: { week: any, index: number }) {
                         <h3 style={{ fontSize: 20, fontWeight: 800 }}>{week.weekLabel}</h3>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
                         <div style={{ background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 16, border: '1px solid var(--border-subtle)' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 4 }}>TOTAL TASKS</div>
-                            <div style={{ fontSize: 24, fontWeight: 800 }}>{week.totalTasks}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>TOTAL TASKS</div>
+                            <div style={{ fontSize: 20, fontWeight: 800 }}>{week.totalTasks}</div>
                         </div>
                         <div style={{ background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 16, border: '1px solid var(--border-subtle)' }}>
-                            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 4 }}>COMPLETED</div>
-                            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-success)' }}>{week.completedTasks}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>COMPLETED</div>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-success)' }}>{week.completedTasks}</div>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 16, border: '1px solid var(--border-subtle)' }}>
+                            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>JOURNAL</div>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-info)' }}>{week.journalConsistency}%</div>
                         </div>
                     </div>
 

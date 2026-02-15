@@ -115,7 +115,21 @@ export interface AIChatMessage {
   suggestedTasks?: any[]; // Keep flexible for now or define strict type if needed
 }
 
-export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup' | 'focus';
+export interface JournalEntry {
+  id: string;
+  userId: string;
+  date: string; // ISO string yyyy-mm-dd
+  weekNumber: number;
+  wins: string;
+  mistakes: string;
+  lessons: string;
+  tomorrowIntent: string;
+  mood: number; // 1-5
+  xpEarned: number;
+  createdAt: string;
+}
+
+export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'journal' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup' | 'focus';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;

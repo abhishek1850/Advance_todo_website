@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut, Download, Zap, History } from 'lucide-react';
+import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut, Download, Zap, History, BookOpen } from 'lucide-react';
 import { usePWA } from '../hooks/usePWA';
 import { useStore } from '../store';
 import { auth } from '../lib/firebase';
@@ -14,6 +14,7 @@ const navItems: { id: ViewType; label: string; icon: React.ReactNode; shortcut: 
     { id: 'today', label: "Today's Tasks", icon: <Sun size={20} />, shortcut: '2' },
     { id: 'yesterday', label: 'Yesterday', icon: <History size={20} />, shortcut: '0' },
     { id: 'history', label: 'History', icon: <BarChart3 size={20} />, shortcut: 'h' },
+    { id: 'journal', label: 'Attack Journal', icon: <BookOpen size={20} />, shortcut: 'j' },
     { id: 'monthly', label: 'Monthly Goals', icon: <Calendar size={20} />, shortcut: '3' },
     { id: 'yearly', label: 'Yearly Vision', icon: <Target size={20} />, shortcut: '4' },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={20} />, shortcut: '5' },

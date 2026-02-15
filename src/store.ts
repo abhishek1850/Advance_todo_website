@@ -1,17 +1,40 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-    Task, TaskTemplate, TaskInstance, UserProfile, Badge, DailyChallenge, ViewType, TaskFilter, CompletionRecord, TaskHorizon
+    Task, TaskTemplate, TaskInstance, UserProfile, Badge, DailyChallenge, ViewType, TaskFilter, CompletionRecord, TaskHorizon, JournalEntry
 } from './types';
-import { format, differenceInDays, parseISO, startOfWeek, addDays, subDays, startOfMonth, startOfYear } from 'date-fns';
+import { format, differenceInDays, parseISO, startOfWeek, addDays, subDays, startOfMonth, startOfYear, getWeek } from 'date-fns';
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, getDocs, addDoc, limit } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { playSound } from './lib/sounds';
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 const XP_PER_LEVEL = 500;
 const PRIORITY_XP: Record<string, number> = { low: 10, medium: 20, high: 35, critical: 50 };
 const HORIZON_MULT: Record<string, number> = { daily: 1, monthly: 1.5, yearly: 2 };
+
+const getJournalStreak = (journals: JournalEntry[]) => {
+    if (!journals.length) return 0;
+    const sorted = [...journals].sort((a, b) => b.date.localeCompare(a.date));
+    const now = new Date();
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const yesterdayStr = format(subDays(now, 1), 'yyyy-MM-dd');
+
+    if (sorted[0].date !== todayStr && sorted[0].date !== yesterdayStr) return 0;
+
+    let streak = 0;
+    let checkDate = parseISO(sorted[0].date);
+
+    for (const j of sorted) {
+        if (j.date === format(checkDate, 'yyyy-MM-dd')) {
+            streak++;
+            checkDate = subDays(checkDate, 1);
+        } else {
+            break;
+        }
+    }
+    return streak;
+};
 
 const DEFAULT_BADGES: Badge[] = [
     { id: 'first_task', name: 'First Step', description: 'Complete your first task', icon: '🎯', unlockedAt: null, requirement: 'Complete 1 task', category: 'milestone' },
@@ -97,6 +120,10 @@ interface AppState {
     getMonthlyCompletionData: () => { day: string; completed: number; total: number }[];
     getWeeklyHistory: () => any[];
     getProductivityScore: () => number;
+    journalEntries: JournalEntry[];
+    addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'xpEarned' | 'weekNumber' | 'date'>) => Promise<void>;
+    updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
+    fetchJournalEntries: () => Promise<void>;
 }
 
 const INITIAL_PROFILE: UserProfile = {
@@ -124,6 +151,7 @@ const INITIAL_STATE = {
     onboardingComplete: false,
     filter: {},
     currentView: 'dashboard' as ViewType,
+    journalEntries: [],
 };
 
 export const useStore = create<AppState>()(
@@ -169,6 +197,7 @@ export const useStore = create<AppState>()(
 
                         // Generate instances immediately
                         await get().checkDailyLogic();
+                        await get().fetchJournalEntries();
                     } else {
                         // New user
                     }
@@ -672,13 +701,20 @@ export const useStore = create<AppState>()(
                     const weekEnd = addDays(weekStart, 6);
                     const weekLabel = `Week ${format(weekStart, 'w')} (${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d')}) ${format(weekEnd, 'yyyy')}`;
 
+                    const weekJournals = get().journalEntries.filter(j => {
+                        const jDate = parseISO(j.date);
+                        return jDate >= weekStart && jDate <= weekEnd;
+                    });
+                    const journalConsistency = Math.round((weekJournals.length / 7) * 100);
+
                     return {
                         weekStart: weekStartStr,
                         weekLabel,
                         totalTasks,
                         completedTasks,
                         progressPercentage,
-                        dailyBreakdown
+                        dailyBreakdown,
+                        journalConsistency
                     };
                 });
 
@@ -710,6 +746,88 @@ export const useStore = create<AppState>()(
 
                 const rawScore = (dailyRate * 0.5) + streakScore + momentumScore - penalty;
                 return Math.max(0, Math.min(100, Math.round(rawScore)));
+            },
+
+            addJournalEntry: async (entryData) => {
+                const { user, profile, journalEntries } = get();
+                if (!user) return;
+
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const weekNumber = getWeek(new Date(), { weekStartsOn: 1 });
+
+                // Check for existing
+                if (journalEntries.find(j => j.date === todayStr)) {
+                    console.warn("Journal already exists for today.");
+                    return;
+                }
+
+                // Calculate streak bonus
+                const streakCount = getJournalStreak(journalEntries);
+                let bonus = 0;
+                if (streakCount + 1 >= 7) bonus = 50;
+                else if (streakCount + 1 >= 3) bonus = 10;
+
+                const xpEarned = 20 + bonus;
+
+                const newEntry: Omit<JournalEntry, 'id'> = {
+                    ...entryData,
+                    userId: user.uid,
+                    date: todayStr,
+                    weekNumber,
+                    xpEarned,
+                    createdAt: new Date().toISOString()
+                };
+
+                const docRef = await addDoc(collection(db, 'journal_entries'), newEntry);
+                const finalEntry = { ...newEntry, id: docRef.id } as JournalEntry;
+
+                // Update Profile XP
+                const newTotalXP = profile.xp + xpEarned;
+                const newLevel = Math.floor(newTotalXP / XP_PER_LEVEL) + 1;
+                const newProfile = {
+                    ...profile,
+                    xp: newTotalXP,
+                    level: newLevel,
+                };
+
+                set({
+                    journalEntries: [finalEntry, ...journalEntries],
+                    profile: newProfile,
+                    showCelebration: true,
+                    lastCelebrationXP: xpEarned
+                });
+
+                // Sync profile
+                updateDoc(doc(db, 'users', user.uid), { profile: newProfile });
+                playSound('success');
+            },
+
+            updateJournalEntry: async (id, updates) => {
+                const { user, journalEntries } = get();
+                if (!user) return;
+
+                const journalRef = doc(db, 'journal_entries', id);
+                await updateDoc(journalRef, updates);
+
+                set({
+                    journalEntries: journalEntries.map(j => j.id === id ? { ...j, ...updates } : j)
+                });
+            },
+
+            fetchJournalEntries: async () => {
+                const { user } = get();
+                if (!user) return;
+
+                const q = query(
+                    collection(db, 'journal_entries'),
+                    where('userId', '==', user.uid),
+                    orderBy('date', 'desc'),
+                    limit(60) // Show last 2 months approx
+                );
+
+                const snap = await getDocs(q);
+                const entries = snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
+                set({ journalEntries: entries });
             },
         }),
         {

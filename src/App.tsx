@@ -22,6 +22,7 @@ const AuthPage = lazy(() => import('./views/AuthPage'));
 const ProfileView = lazy(() => import('./views/ProfileView'));
 const AssistantView = lazy(() => import('./views/AssistantView'));
 const FocusView = lazy(() => import('./views/FocusView'));
+const JournalView = lazy(() => import('./views/JournalView'));
 
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -42,6 +43,7 @@ const VIEW_TITLES: Record<string, string> = {
   profile: 'User Profile',
   assistant: 'AI Coach',
   focus: 'Focus Mode',
+  journal: 'Attack Journal',
 };
 
 const VIEW_KEYS: Record<string, ViewType> = {
@@ -55,6 +57,7 @@ const VIEW_KEYS: Record<string, ViewType> = {
   '7': 'profile',
   '8': 'assistant',
   '9': 'focus',
+  'j': 'journal',
 };
 
 function App() {
@@ -158,6 +161,7 @@ function App() {
       case 'profile': return <ProfileView />;
       case 'assistant': return <AssistantView />;
       case 'focus': return <FocusView />;
+      case 'journal': return <JournalView />;
       default: return <Dashboard />;
     }
   };
