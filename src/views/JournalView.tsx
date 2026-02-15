@@ -352,7 +352,15 @@ export default function JournalView() {
                     display: grid;
                     grid-template-columns: 1fr 340px;
                     gap: 2rem;
-                    max-width: 1200px;
+                    max-width: 1300px;
+                    width: 100%;
+                }
+
+                @media (max-width: 1200px) {
+                    .journal-grid {
+                        grid-template-columns: 1fr 300px;
+                        gap: 1.5rem;
+                    }
                 }
 
                 @media (max-width: 1024px) {
@@ -360,7 +368,22 @@ export default function JournalView() {
                         grid-template-columns: 1fr;
                     }
                     .journal-sidebar {
-                        order: -1;
+                        order: 2;
+                    }
+                }
+
+                @media (max-width: 640px) {
+                    .view-container {
+                        padding: 1rem;
+                    }
+                    .journal-card {
+                        padding: 1.5rem;
+                    }
+                    .view-header h1 {
+                        font-size: 1.5rem;
+                    }
+                    .premium-save-btn {
+                        width: 100%;
                     }
                 }
 
@@ -491,8 +514,14 @@ export default function JournalView() {
 
                 .mood-selector {
                     display: grid;
-                    grid-template-columns: repeat(5, 1fr);
+                    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
                     gap: 0.75rem;
+                }
+
+                @media (max-width: 480px) {
+                    .mood-selector {
+                        grid-template-columns: repeat(3, 1fr);
+                    }
                 }
 
                 .mood-btn {
