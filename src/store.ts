@@ -183,12 +183,12 @@ export const useStore = create<AppState>()(
                     return;
                 }
 
-                // 1. RESET STATE to initial before loading to prevent stale data
+                // 1. RESET STATE to initial FIRST - this clears any stale localStorage data
                 if (import.meta.env.DEV) console.log("🧹 Resetting state for fresh fetch...");
                 set({ user, ...INITIAL_STATE, authLoading: true });
 
                 try {
-                    // 2. Fetch User Data
+                    // 2. Fetch User Data from Firestore
                     if (import.meta.env.DEV) console.log("📡 Fetching user data from Firestore...");
                     const docRef = doc(db, 'users', user.uid);
                     const docSnap = await getDoc(docRef);
@@ -200,21 +200,32 @@ export const useStore = create<AppState>()(
                             instancesCount: data.instances?.length || 0
                         });
 
-                        // 3. Verify Ownership
+                        // 3. Verify Ownership (Security check)
                         if (data.uid && data.uid !== user.uid) {
                             console.error('⛔ SECURITY ALERT: Fetched document ID does not match Auth UID!');
                             throw new Error('Security Mismatch');
                         }
 
-                        // 4. Update State - Mapping 'tasks' to 'templates'
-                        set({
+                        // 4. CRITICAL: Update State - Replace completely with Firestore data
+                        const newState = {
                             templates: data.tasks || [],
                             instances: data.instances || [],
                             tasks: [], // Hydrated on demand
                             profile: { ...get().profile, ...data.profile, onboardingComplete: true },
                             onboardingComplete: true,
                             completionHistory: data.completionHistory || [],
-                        });
+                        };
+
+                        // Validate data integrity
+                        if (import.meta.env.DEV) {
+                            console.log("📊 Data validation:");
+                            console.log("  - Templates:", newState.templates.length, "items");
+                            console.log("  - Instances:", newState.instances.length, "items");
+                            console.log("  - All templates have userId:", newState.templates.every((t: any) => t.userId === user.uid));
+                            console.log("  - All instances have userId:", newState.instances.every((i: any) => i.userId === user.uid));
+                        }
+
+                        set(newState);
 
                         if (import.meta.env.DEV) console.log("💾 State updated from Firestore. Templates:", get().templates.length);
 
@@ -391,11 +402,27 @@ export const useStore = create<AppState>()(
                 if (state.user) {
                     if (import.meta.env.DEV) console.log("📡 Saving new task to Firestore...");
                     try {
+                        // Use setDoc with merge - creates document if doesn't exist, updates if does
                         await setDoc(doc(db, 'users', state.user.uid), {
+                            uid: state.user.uid, // Ensure uid is set for security verification
                             tasks: newTemplates,
                             instances: newInstances
                         }, { merge: true });
-                        if (import.meta.env.DEV) console.log("✅ Successfully stored in Firestore.", { templateCount: newTemplates.length, instanceCount: newInstances.length });
+                        
+                        // Verify write succeeded by reading back
+                        const verifySnap = await getDoc(doc(db, 'users', state.user.uid));
+                        const verifyData = verifySnap.data();
+                        if (import.meta.env.DEV) {
+                            console.log("✅ Successfully stored in Firestore.", { 
+                                written: { templateCount: newTemplates.length, instanceCount: newInstances.length },
+                                verified: { templateCount: verifyData?.tasks?.length || 0, instanceCount: verifyData?.instances?.length || 0 }
+                            });
+                            
+                            // Extra validation
+                            if ((verifyData?.tasks?.length || 0) < newTemplates.length) {
+                                console.warn("⚠️ WARNING: Not all templates were written to Firestore!");
+                            }
+                        }
                     } catch (error) {
                         console.error("❌ Firestore write failed:", error);
                         throw error; // Re-throw so UI knows the save failed
