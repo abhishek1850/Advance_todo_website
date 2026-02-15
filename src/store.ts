@@ -5,7 +5,7 @@ import type {
 } from './types';
 import { format, differenceInDays, parseISO, startOfWeek, addDays, subDays, startOfMonth, startOfYear, getWeek } from 'date-fns';
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { playSound } from './lib/sounds';
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
@@ -121,7 +121,7 @@ interface AppState {
     getWeeklyHistory: () => any[];
     getProductivityScore: () => number;
     journalEntries: JournalEntry[];
-    addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'xpEarned' | 'weekNumber' | 'date'>) => Promise<void>;
+    addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'xpEarned' | 'weekNumber'>) => Promise<void>;
     updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
     fetchJournalEntries: () => Promise<void>;
 }
@@ -752,14 +752,9 @@ export const useStore = create<AppState>()(
                 const { user, profile, journalEntries } = get();
                 if (!user) return;
 
-                const todayStr = format(new Date(), 'yyyy-MM-dd');
-                const weekNumber = getWeek(new Date(), { weekStartsOn: 1 });
-
-                // Check for existing
-                if (journalEntries.find(j => j.date === todayStr)) {
-                    console.warn("Journal already exists for today.");
-                    return;
-                }
+                const entryDate = entryData.date || format(new Date(), 'yyyy-MM-dd');
+                const weekNumber = getWeek(parseISO(entryDate), { weekStartsOn: 1 });
+                const docId = `${user.uid}_${entryDate}`;
 
                 // Calculate streak bonus
                 const streakCount = getJournalStreak(journalEntries);
@@ -769,17 +764,18 @@ export const useStore = create<AppState>()(
 
                 const xpEarned = 20 + bonus;
 
-                const newEntry: Omit<JournalEntry, 'id'> = {
+                const newEntry = {
                     ...entryData,
                     userId: user.uid,
-                    date: todayStr,
+                    date: entryDate,
                     weekNumber,
                     xpEarned,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    updatedAt: serverTimestamp()
                 };
 
-                const docRef = await addDoc(collection(db, 'journal_entries'), newEntry);
-                const finalEntry = { ...newEntry, id: docRef.id } as JournalEntry;
+                await setDoc(doc(db, 'journal_entries', docId), newEntry, { merge: true });
+                const finalEntry = { ...newEntry, id: docId } as JournalEntry;
 
                 // Update Profile XP
                 const newTotalXP = profile.xp + xpEarned;
@@ -791,7 +787,7 @@ export const useStore = create<AppState>()(
                 };
 
                 set({
-                    journalEntries: [finalEntry, ...journalEntries],
+                    journalEntries: [finalEntry, ...journalEntries.filter(j => j.id !== docId)],
                     profile: newProfile,
                     showCelebration: true,
                     lastCelebrationXP: xpEarned
@@ -807,7 +803,11 @@ export const useStore = create<AppState>()(
                 if (!user) return;
 
                 const journalRef = doc(db, 'journal_entries', id);
-                await updateDoc(journalRef, updates);
+                const updateData = {
+                    ...updates,
+                    updatedAt: serverTimestamp()
+                };
+                await setDoc(journalRef, updateData, { merge: true });
 
                 set({
                     journalEntries: journalEntries.map(j => j.id === id ? { ...j, ...updates } : j)
@@ -818,19 +818,30 @@ export const useStore = create<AppState>()(
                 const { user } = get();
                 if (!user) return;
 
-                const q = query(
-                    collection(db, 'journal_entries'),
-                    where('userId', '==', user.uid)
-                );
+                try {
+                    const q = query(
+                        collection(db, 'journal_entries'),
+                        where('userId', '==', user.uid),
+                        orderBy('date', 'desc')
+                    );
 
-                const snap = await getDocs(q);
-                const entries = snap.docs
-                    .map(d => ({ id: d.id, ...d.data() } as JournalEntry))
-                    .filter(e => e.date) // Ensure date exists
-                    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-                    .slice(0, 60);
-
-                set({ journalEntries: entries });
+                    const snap = await getDocs(q);
+                    const entries = snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
+                    set({ journalEntries: entries.slice(0, 60) });
+                } catch (error) {
+                    console.warn("Index not ready or query error, falling back to local sort", error);
+                    const qBasic = query(
+                        collection(db, 'journal_entries'),
+                        where('userId', '==', user.uid)
+                    );
+                    const snap = await getDocs(qBasic);
+                    const entries = snap.docs
+                        .map(d => ({ id: d.id, ...d.data() } as JournalEntry))
+                        .filter(e => e.date) // Ensure date exists
+                        .sort((a, b) => b.date.localeCompare(a.date))
+                        .slice(0, 60);
+                    set({ journalEntries: entries });
+                }
             },
         }),
         {

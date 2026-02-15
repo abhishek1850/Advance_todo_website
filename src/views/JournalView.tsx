@@ -91,7 +91,8 @@ export default function JournalView() {
                 });
             } else {
                 await addJournalEntry({
-                    wins, mistakes, lessons, tomorrowIntent: intent, mood
+                    wins, mistakes, lessons, tomorrowIntent: intent, mood,
+                    date: viewingDate
                 });
                 // XP celebration is already handled in store for new entries
                 addNotification({
