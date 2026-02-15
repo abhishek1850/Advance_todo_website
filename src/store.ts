@@ -5,7 +5,7 @@ import type {
 } from './types';
 import { format, differenceInDays, parseISO, startOfWeek, addDays, subDays, startOfMonth, startOfYear, getWeek } from 'date-fns';
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, orderBy, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp, orderBy, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { playSound } from './lib/sounds';
 import { generateAIResponse } from './lib/ai';
@@ -336,9 +336,9 @@ export const useStore = create<AppState>()(
                     set({ instances: newInstances });
                     if (state.user) {
                         if (import.meta.env.DEV) console.log("📡 Updating instances in Firestore after daily logic...");
-                        updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances })
+                        setDoc(doc(db, 'users', state.user.uid), { instances: newInstances }, { merge: true })
                             .then(() => { if (import.meta.env.DEV) console.log("✅ Firestore instances updated."); })
-                            .catch(error => console.error("Firestore write failed:", error));
+                            .catch(error => console.error("❌ Firestore write failed:", error));
                     }
                 }
             },
@@ -387,17 +387,18 @@ export const useStore = create<AppState>()(
                 set({ templates: newTemplates, instances: newInstances });
                 if (import.meta.env.DEV) console.log("💾 Local state updated. Templates count:", get().templates.length);
 
-                // 2. Persist to Firestore immediately
+                // 2. Persist to Firestore immediately (use setDoc with merge to create or update)
                 if (state.user) {
                     if (import.meta.env.DEV) console.log("📡 Saving new task to Firestore...");
                     try {
-                        await updateDoc(doc(db, 'users', state.user.uid), {
+                        await setDoc(doc(db, 'users', state.user.uid), {
                             tasks: newTemplates,
                             instances: newInstances
-                        });
-                        if (import.meta.env.DEV) console.log("✅ Successfully stored in Firestore.");
+                        }, { merge: true });
+                        if (import.meta.env.DEV) console.log("✅ Successfully stored in Firestore.", { templateCount: newTemplates.length, instanceCount: newInstances.length });
                     } catch (error) {
-                        console.error("Firestore write failed:", error);
+                        console.error("❌ Firestore write failed:", error);
+                        throw error; // Re-throw so UI knows the save failed
                     }
                 } else {
                     if (import.meta.env.DEV) console.warn("⚠️ No user logged in, task only stored locally.");
@@ -418,10 +419,11 @@ export const useStore = create<AppState>()(
                 if (state.user) {
                     if (import.meta.env.DEV) console.log("📡 Updating task in Firestore...");
                     try {
-                        await updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates });
+                        await setDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }, { merge: true });
                         if (import.meta.env.DEV) console.log("✅ Firestore update successful.");
                     } catch (error) {
-                        console.error("Firestore write failed:", error);
+                        console.error("❌ Firestore write failed:", error);
+                        throw error;
                     }
                 }
             },
@@ -450,13 +452,14 @@ export const useStore = create<AppState>()(
                 if (state.user) {
                     if (import.meta.env.DEV) console.log("📡 Deleting task from Firestore...");
                     try {
-                        await updateDoc(doc(db, 'users', state.user.uid), {
+                        await setDoc(doc(db, 'users', state.user.uid), {
                             tasks: newTemplates,
                             instances: newInstances
-                        });
+                        }, { merge: true });
                         if (import.meta.env.DEV) console.log("✅ Firestore deletion successful.");
                     } catch (error) {
-                        console.error("Firestore write failed:", error);
+                        console.error("❌ Firestore write failed:", error);
+                        throw error;
                     }
                 }
             },
@@ -545,10 +548,11 @@ export const useStore = create<AppState>()(
                 if (state.user) {
                     if (import.meta.env.DEV) console.log("📡 Toggling task in Firestore...");
                     try {
-                        await updateDoc(doc(db, 'users', state.user.uid), { instances: newInstances, profile: p });
+                        await setDoc(doc(db, 'users', state.user.uid), { instances: newInstances, profile: p }, { merge: true });
                         if (import.meta.env.DEV) console.log("✅ Firestore toggle successful.");
                     } catch (error) {
-                        console.error("Firestore write failed:", error);
+                        console.error("❌ Firestore write failed:", error);
+                        throw error;
                     }
                 }
             },
@@ -568,16 +572,16 @@ export const useStore = create<AppState>()(
                         }
                         : t
                 );
-
                 set({ templates: newTemplates });
 
                 if (state.user) {
                     if (import.meta.env.DEV) console.log("📡 Updating subtask in Firestore...");
                     try {
-                        await updateDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates });
+                        await setDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }, { merge: true });
                         if (import.meta.env.DEV) console.log("✅ Firestore subtask update successful.");
                     } catch (error) {
-                        console.error("Firestore write failed:", error);
+                        console.error("❌ Firestore write failed:", error);
+                        throw error;
                     }
                 }
             },
@@ -913,7 +917,7 @@ export const useStore = create<AppState>()(
                     ...updates,
                     updatedAt: serverTimestamp()
                 };
-                await updateDoc(journalRef, updateData);
+                await setDoc(journalRef, updateData, { merge: true });
 
                 set({
                     journalEntries: journalEntries.map(j => j.id === id ? { ...j, ...updates } : j)
@@ -1131,8 +1135,9 @@ export const useStore = create<AppState>()(
             name: 'todo-app-storage',
             version: 2,
             partialize: (state) => ({
-                templates: state.templates,
-                instances: state.instances,
+                // ⚠️ IMPORTANT: Do NOT persist templates/instances to localStorage
+                // Firestore is the single source of truth
+                // These MUST be fetched fresh on every setUser() call
                 profile: state.profile,
                 completionHistory: state.completionHistory,
                 currentView: state.currentView,
