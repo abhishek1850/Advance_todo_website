@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-    BookOpen, Trophy, AlertTriangle, Lightbulb,
-    Target, Save, Calendar, TrendingUp,
+    Trophy, AlertTriangle, Lightbulb,
+    Target, Save, TrendingUp,
     Smile, Meh, Frown, Star, Edit3, ChevronRight
 } from 'lucide-react';
 import { useStore } from '../store';
@@ -117,25 +117,7 @@ export default function JournalView() {
     };
 
     return (
-        <div className="view-container">
-            <header className="view-header">
-                <div className="header-main">
-                    <div className="header-icon-ring">
-                        <BookOpen className="header-icon" />
-                    </div>
-                    <div>
-                        <h1>Attack Journal</h1>
-                        <p className="header-subtitle">Review your performance, lock in your progress.</p>
-                    </div>
-                </div>
-                <div className="header-meta">
-                    <div className="meta-item">
-                        <Calendar size={14} />
-                        <span>{format(parseISO(viewingDate), 'EEEE, MMMM do')}</span>
-                    </div>
-                </div>
-            </header>
-
+        <div className="page-content">
             <div className="journal-grid">
                 {/* Journal Entry Form */}
                 <div className="journal-main">
@@ -372,15 +354,18 @@ export default function JournalView() {
                     }
                 }
 
+                .page-content {
+                    width: 100%;
+                    max-width: 1300px;
+                    margin: 0 auto;
+                }
+
                 @media (max-width: 640px) {
-                    .view-container {
+                    .page-content {
                         padding: 1rem;
                     }
                     .journal-card {
                         padding: 1.5rem;
-                    }
-                    .view-header h1 {
-                        font-size: 1.5rem;
                     }
                     .premium-save-btn {
                         width: 100%;
