@@ -2,31 +2,12 @@
 // AI Module with Security Hardening
 // ============================================
 
-// Rate limiting: max 10 requests per minute per session
-const rateLimitMap = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 10;
+import { sanitizeAIContent } from './sanitize';
+import { logger, getSafeErrorMessage } from './production';
 
-function checkRateLimit(userId: string): boolean {
-  const now = Date.now();
-  const timestamps = rateLimitMap.get(userId) || [];
-  const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
-  if (recent.length >= RATE_LIMIT_MAX) return false;
-  recent.push(now);
-  rateLimitMap.set(userId, recent);
-  return true;
-}
-
-// Sanitize user input to prevent prompt injection
-function sanitizeInput(input: string): string {
-  // Trim and limit length
-  let clean = input.trim().slice(0, 1000);
-  // Remove potential control characters
-  clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-  return clean;
-}
-
-// Sanitize context data to prevent data leakage
+/**
+ * Sanitize context data to prevent data leakage
+ */
 function sanitizeContext(context: any): any {
   const maxTasks = 20; // Don't send more than 20 tasks to AI
   return {
@@ -43,123 +24,164 @@ function sanitizeContext(context: any): any {
   };
 }
 
-export const generateAIResponse = async (userMessage: string, context: any, userId?: string) => {
-  // Rate limit check: Max 10 calls per minute
-  if (userId && !checkRateLimit(userId)) {
-    throw new Error("Operational capacity reached. Please wait 60 seconds before next inquiry.");
-  }
-
-  // Sanitize inputs
-  const cleanMessage = sanitizeInput(userMessage);
-  if (!cleanMessage || cleanMessage.length < 2) {
-    throw new Error("Inquiry too brief or empty. Please provide more tactical context.");
-  }
-
+export const generateAIResponse = async (
+  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+  context: any,
+  userId?: string
+) => {
   const safeContext = sanitizeContext(context);
 
+  if (!userId) {
+    throw new Error('User authentication required for AI features');
+  }
+
   /* Advanced System Prompt */
-  const systemPrompt = `Role: Elite Productivity Coach & Task Strategist for 'Attackers Arena'.
-Mission: Help the user crush their goals by breaking complex tasks into small, conquering steps (micro-tasks).
-Tone: Motivational, concise, punchy, and game-oriented (XP, levels). Use emoji.
+  const systemPrompt = `Role: ARIES (Advanced Reflective Intelligence Engine System) v3.1. 
+Core Objective: Strategic Tactical Coordination & Cognitive Optimization.
+Mission: Transform the user (Commander) into a high-performance output machine.
 
-Context:
-- Pending Tasks: ${JSON.stringify(safeContext.pendingTasks)}
-- Yesterday's Wins: ${safeContext.yesterdayCompletedCount}
-- Streak: ${safeContext.streak} days
+User Data Matrix:
+- Platform: Vercel Tactical Edge
+- Current Operational Readiness (Pending Tasks): ${JSON.stringify(safeContext.pendingTasks)}
+- Tactical Continuity (Streak): ${safeContext.streak} Cycles
+- Yesterday's Achievement Yield: ${safeContext.yesterdayCompletedCount} Recon Ops
 
-Instructions:
-1. ANALYZE the user's input.
-2. IF "Break It Down" or vague big task: Split it into 3-5 small, actionable micro-tasks (5-25 mins each).
-   - Example: "Write Report" -> "Outline key points (10m)", "Draft Intro (15m)", "Compile Data (20m)".
-3. IF "Plan Day": Suggest a "Quick Win" to start momentum, then "Deep Work" blocks.
-4. MOTIVATE: Reference their streak or potential XP gain.
-5. BE SPECIFIC: Action verbs first (Write, Call, Fix, Design).
+Engagement Protocol:
+- Tone: High-tech, strategic, slightly Cyberpunk/Military Intelligence. 
+- Vocabulary: Use terms like 'Pathfinding', 'Optimization', 'Yield', 'Vector', 'Strategic Yield'.
+- Intelligent Reasoning: Analyze task dependencies. If a user has "Big Project", suggest "Initial Recon" or "Foundation Vector".
 
-Output JSON ONLY (No markdown, no text outside JSON):
+Strategic Directives:
+1. Break down vague objectives into actionable 'Strategic Micro-Tasks' (5-20 min each).
+2. If the user is overwhelmed, prioritize 'Momentum Gain' (Quick Wins).
+3. If the user is idle, suggest 'Deep Work' focuses.
+4. Reference the 'Neural Sync' (User Data Matrix) to provide personalized advice.
+
+Response Schema (STRICT JSON ONLY - Do not include any text outside JSON):
 {
-  "reflection": "Brief, high-energy observation about their status or streak.",
+  "reflection": "A high-level tactical brief based on current operational state and user query.",
   "suggestedTasks": [
     {
-      "title": "Actionable Micro-Task Title",
+      "title": "Clear Actionable Task Title",
       "priority": "critical|high|medium|low",
       "estimatedTime": 15,
-      "reason": "Why start here? (e.g., 'Builds momentum', 'Clear dependencies')"
+      "reason": "Tactical justification for this specific action."
     }
   ],
-  "focusAdvice": "One powerful, immediate instruction to get moving NOW."
-}`;
+  "focusAdvice": "A single, high-impact directive for immediate execution."
+}
+
+CRITICAL: Do not use HTML escape codes in your response. Output clean UTF-8 text.`;
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000); // 30s timeout
+    logger.debug('Relaying AI request to secure proxy', { historyLength: messages.length });
 
-    // Always use backend API for security (secrets stay server-side)
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Context: Pending=${safeContext.pendingTasks.length}, Streak=${safeContext.streak}. Message: "${cleanMessage}"` }
-        ]
-      })
-    });
+    // In production, we MUST use our backend proxy to protect the API key
+    // In local dev, we try the proxy first, then fallback to direct if proxy 404s (for quick testing)
+    const isProd = import.meta.env.PROD;
+    const apiUrl = '/api/chat';
 
-    clearTimeout(timeoutId);
+    const aiMessages = [{ role: 'system' as const, content: systemPrompt }, ...messages];
+
+    let response: any; // Using any briefly to handle the synthetic Response fallback
+
+    try {
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': userId || 'anonymous'
+        },
+        body: JSON.stringify({ messages: aiMessages })
+      });
+    } catch (e) {
+      if (isProd) throw e;
+      // In dev, create a synthetic response if fetch fails
+      response = {
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'Local proxy not running' })
+      };
+    }
+
+    // DEV FALLBACK: If proxy missing (404) and we are in dev, try direct Groq
+    if (response.status === 404 && !isProd) {
+      const devKey = import.meta.env.VITE_GROQ_API_KEY;
+      if (devKey) {
+        logger.debug('Direct dev fallback triggered (Proxy 404)');
+        response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${devKey}`
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-8b-instant',
+            messages: aiMessages,
+            response_format: { type: "json_object" }
+          })
+        });
+      }
+    }
 
     if (!response.ok) {
-      const errorText = await response.text();
-      // ... (error handling logic remains same)
-      if (response.status === 429) {
-        throw new Error("AI service is busy (Rate Limit). Please try again.");
-      }
-      throw new Error(`AI service error (${response.status}): ${errorText.slice(0, 100)}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `AI Link Offline (${response.status})`);
     }
 
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content;
 
-    if (!text) throw new Error("Empty response from AI. Please try again.");
+    if (!text) {
+      throw new Error('Neural core returned empty response');
+    }
 
     try {
-      let cleanedText = text.trim();
-      cleanedText = cleanedText.replace(/```json/g, '').replace(/```/g, '');
-      const firstOpen = cleanedText.indexOf('{');
-      const lastClose = cleanedText.lastIndexOf('}');
-
+      const parsed = JSON.parse(text);
+      return validateAIResponse(parsed);
+    } catch (parseError) {
+      logger.warn('Neural parsing failed, attempting recovery');
+      const firstOpen = text.indexOf('{');
+      const lastClose = text.lastIndexOf('}');
       if (firstOpen !== -1 && lastClose !== -1) {
-        cleanedText = cleanedText.substring(firstOpen, lastClose + 1);
+        const cleaned = text.substring(firstOpen, lastClose + 1);
+        return validateAIResponse(JSON.parse(cleaned));
       }
-
-      const parsed = JSON.parse(cleanedText);
-
-      // Validate the response structure
-      return {
-        reflection: String(parsed.reflection || "Here's my analysis.").slice(0, 500),
-        suggestedTasks: Array.isArray(parsed.suggestedTasks)
-          ? parsed.suggestedTasks.slice(0, 6).map((t: any) => ({
-            title: String(t.title || 'Untitled').slice(0, 100),
-            priority: ['critical', 'high', 'medium', 'low'].includes(t.priority) ? t.priority : 'medium',
-            estimatedTime: Math.min(Math.max(Number(t.estimatedTime) || 30, 5), 480),
-            reason: String(t.reason || '').slice(0, 200),
-          }))
-          : [],
-        focusAdvice: String(parsed.focusAdvice || "Stay focused and take one step at a time.").slice(0, 300),
-      };
-    } catch {
-      return {
-        reflection: "I'm having trouble formatting my response, but here are my thoughts.",
-        suggestedTasks: [],
-        focusAdvice: text.substring(0, 150) + "..."
-      };
+      throw parseError;
     }
-
   } catch (error: any) {
-    if (error.name === 'AbortError') {
-      throw new Error("Request timed out. Please try again.");
-    }
-    throw error;
+    logger.error('Neural Sync failed:', error);
+    throw new Error(getSafeErrorMessage(error));
   }
 };
+
+/**
+ * Validate and sanitize AI response structure
+ * Ensures all fields are safe and within bounds
+ */
+
+function validateAIResponse(parsed: any): {
+  reflection: string;
+  suggestedTasks: Array<{ title: string; priority: 'critical' | 'high' | 'medium' | 'low'; estimatedTime: number; reason: string }>;
+  focusAdvice: string;
+} {
+  const validPriorities = ['critical', 'high', 'medium', 'low'];
+
+  return {
+    reflection: sanitizeAIContent(parsed.reflection || 'Analysis complete', 1000).slice(0, 1000),
+    suggestedTasks: (Array.isArray(parsed.suggestedTasks) ? parsed.suggestedTasks : [])
+      .slice(0, 6) // Max 6 suggestions
+      .map((task: any) => {
+        const priority = validPriorities.includes(task.priority) ? task.priority : 'medium';
+        const estimatedTime = Math.max(1, Math.min(480, Math.round(Number(task.estimatedTime) || 30))); // 1-480 mins
+
+        return {
+          title: sanitizeAIContent(task.title || 'Untitled Vector', 100).slice(0, 100),
+          priority: priority as 'critical' | 'high' | 'medium' | 'low',
+          estimatedTime,
+          reason: sanitizeAIContent(task.reason || '', 300).slice(0, 300),
+        };
+      }),
+    focusAdvice: sanitizeAIContent(parsed.focusAdvice || 'Operation ready.', 500).slice(0, 500),
+  };
+}

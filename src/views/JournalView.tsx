@@ -1,71 +1,48 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-    Trophy, AlertTriangle, Lightbulb,
-    Target, Save, TrendingUp,
-    Smile, Meh, Frown, Star, Edit3, ChevronRight, X, Trash2
+    Save,
+    Edit3, ChevronRight, X, Calendar,
+    Trophy, Lightbulb, AlertTriangle, Target, Star
 } from 'lucide-react';
 import { useStore } from '../store';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
-import { LineChart, Line, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-
-const moodEmojis = [
-    { value: 1, icon: Frown, label: 'Tough Day', color: '#ff4d4d' },
-    { value: 2, icon: Meh, label: 'Average', color: '#ffa64d' },
-    { value: 3, icon: Smile, label: 'Good', color: '#4dff88' },
-    { value: 4, icon: Star, label: 'Great', color: '#4de8ff' },
-    { value: 5, icon: Trophy, label: 'Victory', color: '#e04dff' },
-];
+import { format, parseISO } from 'date-fns';
 
 export default function JournalView() {
-    const { journalEntries, addJournalEntry, updateJournalEntry, deleteJournalEntry, addNotification } = useStore();
+    const { journalEntries, addJournalEntry, updateJournalEntry, addNotification } = useStore();
     const [viewingDate, setViewingDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [showSuccess, setShowSuccess] = useState(false);
     const activeEntry = journalEntries.find(j => j.date === viewingDate);
     const isToday = viewingDate === format(new Date(), 'yyyy-MM-dd');
 
     const [wins, setWins] = useState('');
+    const [learn, setLearn] = useState('');
     const [mistakes, setMistakes] = useState('');
-    const [lessons, setLessons] = useState('');
-    const [intent, setIntent] = useState('');
-    const [mood, setMood] = useState(3);
+    const [tomorrowIntent, setTomorrowIntent] = useState('');
+
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
     // Sync state when activeEntry or viewingDate changes
     React.useEffect(() => {
         if (activeEntry) {
-            setWins(activeEntry.wins);
-            setMistakes(activeEntry.mistakes);
-            setLessons(activeEntry.lessons);
-            setIntent(activeEntry.tomorrowIntent);
-            setMood(activeEntry.mood);
+            setWins(activeEntry.wins || '');
+            setLearn(activeEntry.learn || '');
+            setMistakes(activeEntry.mistakes || '');
+            setTomorrowIntent(activeEntry.tomorrowIntent || '');
             setIsEditing(false);
         } else {
             setWins('');
+            setLearn('');
             setMistakes('');
-            setLessons('');
-            setIntent('');
-            setMood(3);
+            setTomorrowIntent('');
             setIsEditing(isToday);
         }
     }, [activeEntry, viewingDate, isToday]);
 
-    // Analytics: Last 30 days mood and consistency
-    const analyticsData = useMemo(() => {
-        const start = startOfMonth(new Date());
-        const end = endOfMonth(new Date());
-        const days = eachDayOfInterval({ start, end });
-
-        return days.map(day => {
-            const dateStr = format(day, 'yyyy-MM-dd');
-            const entry = journalEntries.find(j => j.date === dateStr);
-            return {
-                day: format(day, 'd'),
-                mood: entry ? entry.mood : null,
-                completed: !!entry
-            };
-        }).filter(d => d.mood !== null);
+    // Analytics: XP and Consistency
+    const totalJournalXP = useMemo(() => {
+        return journalEntries.reduce((acc, entry) => acc + (entry.xpGain || 0) + (entry.streakBonus || 0), 0);
     }, [journalEntries]);
 
     const consistencyRate = useMemo(() => {
@@ -73,16 +50,22 @@ export default function JournalView() {
             j.date.startsWith(format(new Date(), 'yyyy-MM'))
         ).length;
         const totalDaysSoFar = new Date().getDate();
-        return Math.round((thisMonthEntries / totalDaysSoFar) * 100);
+        return Math.round((thisMonthEntries / (totalDaysSoFar || 1)) * 100);
     }, [journalEntries]);
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            const entryPayload = {
+                wins,
+                learn,
+                mistakes,
+                tomorrowIntent,
+                date: viewingDate
+            };
+
             if (activeEntry) {
-                await updateJournalEntry(activeEntry.id, {
-                    wins, mistakes, lessons, tomorrowIntent: intent, mood
-                });
+                await updateJournalEntry(activeEntry.id, entryPayload);
                 addNotification({
                     title: 'Journal Updated',
                     message: `Historical record for ${format(parseISO(viewingDate), 'MMM dd')} saved.`,
@@ -90,14 +73,10 @@ export default function JournalView() {
                     icon: '💾'
                 });
             } else {
-                await addJournalEntry({
-                    wins, mistakes, lessons, tomorrowIntent: intent, mood,
-                    date: viewingDate
-                });
-                // XP celebration is already handled in store for new entries
+                await addJournalEntry(entryPayload);
                 addNotification({
                     title: 'Mission Logged',
-                    message: '+20 XP earned for daily reflection.',
+                    message: 'Daily reflection secured. +25 XP earned.',
                     type: 'xp',
                     icon: '🎯'
                 });
@@ -130,9 +109,9 @@ export default function JournalView() {
                         {!isEditing ? (
                             <div className="journal-readonly">
                                 <div className="journal-header-actions">
-                                    <div className="journal-mood-badge">
-                                        {React.createElement(moodEmojis.find(m => m.value === mood)?.icon || Smile, { size: 18 })}
-                                        <span>{moodEmojis.find(m => m.value === mood)?.label}</span>
+                                    <div className="journal-date-badge">
+                                        <Calendar size={18} />
+                                        <span>{format(parseISO(viewingDate), 'MMMM dd, yyyy')}</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: 12 }}>
                                         {!isToday && (
@@ -156,71 +135,93 @@ export default function JournalView() {
                                     </div>
                                 </div>
 
-                                <JournalSection title="Wins of the Day" icon={Trophy} content={wins} color="var(--success)" />
-                                <JournalSection title="Lessons Learned" icon={Lightbulb} content={lessons} color="var(--primary)" />
-                                <JournalSection title="Mistakes / Missed Tasks" icon={AlertTriangle} content={mistakes} color="var(--error)" />
-                                <JournalSection title="Tomorrow's Intent" icon={Target} content={intent} color="var(--info)" />
+                                <div className="journal-sections-readonly">
+                                    <div className="journal-section-item">
+                                        <div className="section-header">
+                                            <Trophy size={20} />
+                                            <span>Wins Today</span>
+                                        </div>
+                                        <div className="section-content">
+                                            {wins || <span className="empty-val">No wins recorded.</span>}
+                                        </div>
+                                    </div>
+
+                                    <div className="journal-section-item">
+                                        <div className="section-header">
+                                            <Lightbulb size={20} />
+                                            <span>Learnings</span>
+                                        </div>
+                                        <div className="section-content">
+                                            {learn || <span className="empty-val">No learnings recorded.</span>}
+                                        </div>
+                                    </div>
+
+                                    <div className="journal-section-item">
+                                        <div className="section-header">
+                                            <AlertTriangle size={20} />
+                                            <span>Mistakes & Challenges</span>
+                                        </div>
+                                        <div className="section-content">
+                                            {mistakes || <span className="empty-val">No mistakes recorded.</span>}
+                                        </div>
+                                    </div>
+
+                                    <div className="journal-section-item">
+                                        <div className="section-header">
+                                            <Target size={20} />
+                                            <span>Tomorrow's Intent</span>
+                                        </div>
+                                        <div className="section-content">
+                                            {tomorrowIntent || <span className="empty-val">No intent recorded for tomorrow.</span>}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <div className="journal-form">
-                                <section className="form-section">
-                                    <label><Trophy size={16} /> What were your wins today?</label>
-                                    <textarea
-                                        placeholder="No matter how small, list your victories..."
-                                        value={wins}
-                                        onChange={(e) => setWins(e.target.value)}
-                                    />
-                                </section>
+                                <div className="journal-sections-edit">
+                                    <section className="form-section">
+                                        <label><Trophy size={16} /> What were your wins today?</label>
+                                        <textarea
+                                            placeholder="No matter how small, list your victories..."
+                                            value={wins}
+                                            onChange={(e) => setWins(e.target.value)}
+                                        />
+                                    </section>
 
-                                <section className="form-section">
-                                    <label><Lightbulb size={16} /> What did you learn?</label>
-                                    <textarea
-                                        placeholder="Techniques, mindset shifts, new knowledge..."
-                                        value={lessons}
-                                        onChange={(e) => setLessons(e.target.value)}
-                                    />
-                                </section>
+                                    <section className="form-section">
+                                        <label><Lightbulb size={16} /> What did you learn?</label>
+                                        <textarea
+                                            placeholder="Techniques, mindset shifts, new knowledge..."
+                                            value={learn}
+                                            onChange={(e) => setLearn(e.target.value)}
+                                        />
+                                    </section>
 
-                                <section className="form-section">
-                                    <label><AlertTriangle size={16} /> Mistakes / Missed Tasks</label>
-                                    <textarea
-                                        placeholder="What went wrong? Why? (Be honest, no judgment)"
-                                        value={mistakes}
-                                        onChange={(e) => setMistakes(e.target.value)}
-                                    />
-                                </section>
+                                    <section className="form-section">
+                                        <label><AlertTriangle size={16} /> Mistakes / Missed Tasks</label>
+                                        <textarea
+                                            placeholder="What went wrong? Why? (Be honest, no judgment)"
+                                            value={mistakes}
+                                            onChange={(e) => setMistakes(e.target.value)}
+                                        />
+                                    </section>
 
-                                <section className="form-section">
-                                    <label><Target size={16} /> Tomorrow's Intent</label>
-                                    <textarea
-                                        placeholder="What is the #1 thing that must happen tomorrow?"
-                                        value={intent}
-                                        onChange={(e) => setIntent(e.target.value)}
-                                    />
-                                </section>
-
-                                <section className="form-section">
-                                    <label><Smile size={16} /> Overall Mood / Energy</label>
-                                    <div className="mood-selector">
-                                        {moodEmojis.map((m) => (
-                                            <button
-                                                key={m.value}
-                                                className={`mood-btn ${mood === m.value ? 'active' : ''}`}
-                                                style={{ '--mood-color': m.color } as any}
-                                                onClick={() => setMood(m.value)}
-                                            >
-                                                <m.icon size={24} />
-                                                <span>{m.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </section>
+                                    <section className="form-section">
+                                        <label><Target size={16} /> Tomorrow's Intent</label>
+                                        <textarea
+                                            placeholder="What is the #1 thing that must happen tomorrow?"
+                                            value={tomorrowIntent}
+                                            onChange={(e) => setTomorrowIntent(e.target.value)}
+                                        />
+                                    </section>
+                                </div>
 
                                 <div className="form-actions">
                                     <motion.button
                                         className={`premium-save-btn ${showSuccess ? 'success' : ''} ${isSaving ? 'saving' : ''}`}
                                         onClick={handleSave}
-                                        disabled={isSaving || !wins.trim() || !intent.trim() || showSuccess}
+                                        disabled={isSaving || (!wins.trim() && !learn.trim() && !mistakes.trim() && !tomorrowIntent.trim()) || showSuccess}
                                         whileHover={{ scale: 1.02, translateY: -2 }}
                                         whileTap={{ scale: 0.98 }}
                                     >
@@ -243,7 +244,7 @@ export default function JournalView() {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <span>{activeEntry ? 'Update Journal' : 'Lock in Entry (+20 XP)'}</span>
+                                                    <span>{activeEntry ? 'Update Journal' : 'Lock in Entry (+25 XP)'}</span>
                                                     <Save size={18} className="btn-icon" />
                                                 </>
                                             )}
@@ -270,6 +271,16 @@ export default function JournalView() {
                 {/* Journal Sidebar Analytics */}
                 <aside className="journal-sidebar">
                     <motion.div
+                        className="journal-xp-badge"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.05 }}
+                    >
+                        <Star size={20} fill="currentColor" className="xp-star" />
+                        <span>Total Journal XP: {totalJournalXP}</span>
+                    </motion.div>
+
+                    <motion.div
                         className="glass-card analytics-card"
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -285,36 +296,14 @@ export default function JournalView() {
                             </div>
                         </div>
 
-                        <div className="mood-chart-container">
-                            <div className="chart-label"><TrendingUp size={14} /> Mood Trend (Month)</div>
-                            <div style={{ height: 160, width: '100%', minWidth: 0 }}>
-                                <ResponsiveContainer>
-                                    <LineChart data={analyticsData}>
-                                        <Line
-                                            type="monotone"
-                                            dataKey="mood"
-                                            stroke="var(--primary)"
-                                            strokeWidth={3}
-                                            dot={{ r: 4, fill: 'var(--primary)', strokeWidth: 0 }}
-                                            activeDot={{ r: 6, fill: 'var(--primary)' }}
-                                        />
-                                        <YAxis hide domain={[1, 5]} />
-                                        <Tooltip
-                                            contentStyle={{
-                                                background: 'rgba(20, 20, 25, 0.95)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                borderRadius: '12px',
-                                                fontSize: '12px'
-                                            }}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
+                        <div className="insight-stat">
+                            <div className="stat-label">Total Entries</div>
+                            <div className="stat-value">{journalEntries.length}</div>
                         </div>
 
-                        <div className="journal-xp-badge">
-                            <Star size={14} className="xp-icon" />
-                            <span>Total Journal XP: {journalEntries.reduce((acc, curr) => acc + (curr.xpEarned || 0), 0)}</span>
+                        <div className="insight-stat">
+                            <div className="stat-label">This Month</div>
+                            <div className="stat-value">{journalEntries.filter(j => j.date.startsWith(format(new Date(), 'yyyy-MM'))).length}</div>
                         </div>
                     </motion.div>
 
@@ -332,22 +321,16 @@ export default function JournalView() {
                                         className={`recent-entry-item ${viewingDate === entry.date ? 'active' : ''}`}
                                         onClick={() => setViewingDate(entry.date)}
                                     >
-                                        <div className="entry-dot" style={{ background: moodEmojis.find(m => m.value === entry.mood)?.color || 'var(--primary)' }} />
+                                        <div className="entry-dot" style={{ background: 'var(--primary)' }} />
                                         <div className="entry-info">
                                             <span className="entry-date">{format(parseISO(entry.date), 'MMM dd')}</span>
-                                            <span className="entry-preview">{entry.wins?.substring(0, 30)}...</span>
+                                            <span className="entry-preview">
+                                                {entry.wins ? `🏆 ${entry.wins.substring(0, 30)}...` :
+                                                    entry.tomorrowIntent ? `🎯 ${entry.tomorrowIntent.substring(0, 30)}...` :
+                                                        'Empty log'}
+                                            </span>
                                         </div>
                                         <ChevronRight size={14} className="chevron" />
-                                    </button>
-                                    <button
-                                        className="entry-delete-btn"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (window.confirm('Erase this log entry?')) deleteJournalEntry(entry.id);
-                                        }}
-                                        title="Delete Entry"
-                                    >
-                                        <Trash2 size={14} />
                                     </button>
                                 </div>
                             ))}
@@ -511,58 +494,47 @@ export default function JournalView() {
                     font-size: 0.95rem;
                 }
 
+                .journal-xp-badge {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    padding: 1rem 1.75rem;
+                    background: rgba(255, 215, 0, 0.08);
+                    border: 1px solid rgba(255, 215, 0, 0.3);
+                    border-radius: 16px;
+                    color: gold;
+                    font-weight: 800;
+                    font-size: 1.15rem;
+                    margin-bottom: 2rem;
+                    box-shadow: 0 0 20px rgba(255, 215, 0, 0.05),
+                                0 0 0 1px rgba(255, 215, 0, 0.15) inset;
+                }
+
+                .xp-star {
+                    filter: drop-shadow(0 0 8px gold);
+                }
+
+                .journal-sections-readonly, .journal-sections-edit {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2rem;
+                }
+
+                .empty-val {
+                    opacity: 0.4;
+                    font-style: italic;
+                }
+
                 .form-section textarea {
                     background: rgba(0,0,0,0.2);
                     border: 1px solid rgba(255,255,255,0.1);
                     border-radius: 12px;
                     padding: 1rem;
                     color: white;
-                    min-height: 100px;
+                    min-height: 120px;
                     resize: vertical;
                     transition: border-color 0.2s;
-                }
-
-                .form-section textarea:focus {
-                    border-color: var(--primary);
-                    outline: none;
-                }
-
-                .mood-selector {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-                    gap: 0.75rem;
-                }
-
-                @media (max-width: 480px) {
-                    .mood-selector {
-                        grid-template-columns: repeat(3, 1fr);
-                    }
-                }
-
-                .mood-btn {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 0.5rem;
-                    padding: 1rem 0.5rem;
-                    background: rgba(255,255,255,0.03);
-                    border: 1px solid rgba(255,255,255,0.05);
-                    border-radius: 12px;
-                    color: rgba(255,255,255,0.5);
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-
-                .mood-btn:hover {
-                    background: rgba(255,255,255,0.08);
-                }
-
-                .mood-btn.active {
-                    background: rgba(var(--mood-color-rgb), 0.1);
-                    border-color: var(--mood-color);
-                    color: var(--mood-color);
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                    font-family: inherit;
                 }
 
                 .journal-readonly {
@@ -579,7 +551,7 @@ export default function JournalView() {
                     padding-bottom: 1.5rem;
                 }
 
-                .journal-mood-badge {
+                .journal-date-badge {
                     display: flex;
                     align-items: center;
                     gap: 0.75rem;
@@ -603,6 +575,7 @@ export default function JournalView() {
                     gap: 0.75rem;
                     font-weight: 600;
                     font-size: 1.1rem;
+                    color: var(--primary);
                 }
 
                 .section-content {
@@ -631,19 +604,6 @@ export default function JournalView() {
                 .stat-value { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; }
                 .stat-progress { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
                 .stat-progress-fill { height: 100%; background: var(--primary); transition: width 0.5s ease-out; }
-
-                .journal-xp-badge {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    padding: 0.75rem;
-                    background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,165,0,0.1));
-                    border: 1px solid rgba(255,215,0,0.2);
-                    border-radius: 12px;
-                    color: #ffd700;
-                    font-size: 0.9rem;
-                    font-weight: 600;
-                }
 
                 .history-list-card {
                     padding: 1.5rem;
@@ -731,34 +691,6 @@ export default function JournalView() {
                     gap: 0.5rem;
                 }
 
-                .entry-delete-btn {
-                    position: absolute;
-                    right: 8px;
-                    opacity: 0;
-                    background: rgba(255, 82, 82, 0.1);
-                    border: 1px solid rgba(255, 82, 82, 0.2);
-                    color: #ff5252;
-                    padding: 6px;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    z-index: 2;
-                }
-
-                .recent-entry-wrapper:hover .entry-delete-btn {
-                    opacity: 1;
-                }
-                
-                .recent-entry-wrapper:hover .chevron {
-                    opacity: 0;
-                }
-
-                .entry-delete-btn:hover {
-                    background: #ff5252;
-                    color: white;
-                    transform: scale(1.1);
-                }
-
                 .btn-secondary {
                     background: rgba(255, 255, 255, 0.03);
                     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -787,21 +719,34 @@ export default function JournalView() {
                     border-radius: 10px;
                 }
 
-            `}</style>
-        </div>
-    );
-}
+                .form-section textarea:focus {
+                    border-color: var(--primary);
+                    outline: none;
+                    background: rgba(0,0,0,0.3);
+                    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+                }
 
-function JournalSection({ title, icon: Icon, content, color }: any) {
-    return (
-        <div className="journal-section-item">
-            <div className="section-header" style={{ color }}>
-                <Icon size={20} />
-                <span>{title}</span>
-            </div>
-            <div className="section-content">
-                {content || <span style={{ opacity: 0.4, fontStyle: 'italic' }}>No entry recorded for this section.</span>}
-            </div>
+                .form-section label {
+                  margin-bottom: 0.5rem;
+                  font-size: 1.1rem !important;
+                  font-weight: 700 !important;
+                }
+
+                .section-header {
+                  font-size: 1.1rem;
+                  font-weight: 700;
+                  color: var(--primary);
+                  margin-bottom: 0.5rem;
+                }
+                
+                .section-content {
+                  padding: 1.25rem !important;
+                  background: rgba(255,255,255,0.03) !important;
+                  border: 1px solid rgba(255,255,255,0.05);
+                  border-radius: 16px !important;
+                }
+
+            `}</style>
         </div>
     );
 }

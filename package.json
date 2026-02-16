@@ -3,7 +3,6 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://abhishek1850.github.io/Advance_todo_website",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

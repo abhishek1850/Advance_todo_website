@@ -9,6 +9,20 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp
 import { db } from './lib/firebase';
 import { playSound } from './lib/sounds';
 import { generateAIResponse } from './lib/ai';
+import {
+    sanitizeName,
+    sanitizeUsername,
+    sanitizeTaskText,
+    sanitizeJournalContent,
+    validatePriority,
+    validateHorizon,
+    validateEnergyLevel,
+    validateXPValue,
+    validateCategory,
+    validateJournalDate,
+    sanitizeConversationTitle
+} from './lib/sanitize';
+import { logger, retryWithBackoff, getSafeErrorMessage } from './lib/production';
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 const XP_PER_LEVEL = 500;
 const PRIORITY_XP: Record<string, number> = { low: 10, medium: 20, high: 35, critical: 50 };
@@ -122,7 +136,7 @@ interface AppState {
     getWeeklyHistory: () => any[];
     getProductivityScore: () => number;
     journalEntries: JournalEntry[];
-    addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'xpEarned' | 'weekNumber'>) => Promise<void>;
+    addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'userId' | 'createdAt' | 'xpGain' | 'streakBonus' | 'weekNumber'>) => Promise<void>;
     updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
     deleteJournalEntry: (id: string) => Promise<void>;
     fetchJournalEntries: () => Promise<void>;
@@ -175,71 +189,76 @@ export const useStore = create<AppState>()(
             ...INITIAL_STATE,
 
             setUser: async (user) => {
-                if (import.meta.env.DEV) console.log("🔄 setUser triggered for:", user?.uid);
+                logger.debug("setUser triggered for:", user?.uid);
                 if (!user) {
-                    if (import.meta.env.DEV) console.log("📤 Logging out - clearing state");
+                    logger.debug("Logging out - clearing state");
                     set({ user: null, ...INITIAL_STATE, authLoading: false });
                     localStorage.removeItem('todo-app-storage');
                     return;
                 }
 
+                // ✅ FIX 1: Check email verification first
+                if (!user.emailVerified) {
+                    logger.warn("Email not verified for user:", user.uid);
+                    set({ user: null, authLoading: false });
+                    throw new Error('Please verify your email before accessing the app.');
+                }
+
                 // 1. RESET STATE to initial FIRST - this clears any stale localStorage data
-                if (import.meta.env.DEV) console.log("🧹 Resetting state for fresh fetch...");
+                logger.debug("Resetting state for fresh fetch...");
                 set({ user, ...INITIAL_STATE, authLoading: true });
 
                 try {
-                    // 2. Fetch User Data from Firestore
-                    if (import.meta.env.DEV) console.log("📡 Fetching user data from Firestore...");
-                    const docRef = doc(db, 'users', user.uid);
-                    const docSnap = await getDoc(docRef);
+                    // 2. Fetch User Data from Firestore with retry logic
+                    logger.debug("Fetching user data from Firestore...");
+
+                    let docSnap;
+                    try {
+                        const docRef = doc(db, 'users', user.uid);
+                        docSnap = await retryWithBackoff(() => getDoc(docRef), 3, 100);
+                    } catch (error) {
+                        logger.error("Failed to fetch user data after retries:", error);
+                        throw new Error('Failed to load user profile. Please try again.');
+                    }
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        if (import.meta.env.DEV) console.log("✅ Firestore data received:", {
+                        logger.debug("Firestore data received:", {
                             templatesCount: data.tasks?.length || 0,
                             instancesCount: data.instances?.length || 0
                         });
 
                         // 3. Verify Ownership (Security check)
                         if (data.uid && data.uid !== user.uid) {
-                            console.error('⛔ SECURITY ALERT: Fetched document ID does not match Auth UID!');
-                            throw new Error('Security Mismatch');
+                            console.error('⛔ SECURITY ALERT: Data ownership mismatch!');
+                            throw new Error('Security validation failed');
                         }
 
                         // 4. CRITICAL: Update State - Replace completely with Firestore data
                         const newState = {
                             templates: data.tasks || [],
                             instances: data.instances || [],
-                            tasks: [], // Hydrated on demand
+                            tasks: [],
                             profile: { ...get().profile, ...data.profile, onboardingComplete: true },
                             onboardingComplete: true,
                             completionHistory: data.completionHistory || [],
                         };
 
-                        // Validate data integrity
-                        if (import.meta.env.DEV) {
-                            console.log("📊 Data validation:");
-                            console.log("  - Templates:", newState.templates.length, "items");
-                            console.log("  - Instances:", newState.instances.length, "items");
-                            console.log("  - All templates have userId:", newState.templates.every((t: any) => t.userId === user.uid));
-                            console.log("  - All instances have userId:", newState.instances.every((i: any) => i.userId === user.uid));
-                        }
-
                         set(newState);
-
-                        if (import.meta.env.DEV) console.log("💾 State updated from Firestore. Templates:", get().templates.length);
+                        logger.debug("State updated from Firestore. Templates:", get().templates.length);
 
                         // Generate instances immediately
                         await get().checkDailyLogic();
                         await get().fetchJournalEntries();
                     } else {
-                        if (import.meta.env.DEV) console.log("✨ New user detected (no Firestore doc yet)");
+                        logger.debug("New user detected (no Firestore doc yet)");
                     }
                 } catch (error) {
-                    console.error("❌ Error loading user data from Firestore:", error);
+                    logger.error("Error loading user data from Firestore:", error);
+                    throw error;
                 } finally {
                     set({ authLoading: false });
-                    if (import.meta.env.DEV) console.log("🕒 Auth loading finished.");
+                    logger.debug("Auth loading finished.");
                 }
             },
 
@@ -248,12 +267,16 @@ export const useStore = create<AppState>()(
                 const user = state.user;
                 if (!user) return;
 
-                if (import.meta.env.DEV) console.log("🚀 Completing onboarding for:", username);
+                logger.debug("Completing onboarding for:", username);
+
+                // ✅ FIX: Sanitize and validate inputs before writing
+                const sanitizedUsername = sanitizeUsername(username);
+                const sanitizedName = sanitizeName(name);
 
                 const newUserProfile: UserProfile = {
                     ...state.profile,
-                    name,
-                    username,
+                    name: sanitizedName,
+                    username: sanitizedUsername,
                     onboardingComplete: true,
                     joinedDate: new Date().toISOString()
                 };
@@ -261,27 +284,31 @@ export const useStore = create<AppState>()(
                 const userDoc = {
                     uid: user.uid,
                     email: user.email,
-                    name: name,
+                    name: sanitizedName,
                     photoURL: user.photoURL,
-                    username: username,
+                    username: sanitizedUsername,
                     createdAt: new Date().toISOString(),
                     onboardingComplete: true,
                     profile: newUserProfile,
-                    tasks: state.templates, // ✅ FIX: Use templates, not tasks
+                    tasks: state.templates,
                     instances: state.instances,
                     completionHistory: state.completionHistory
                 };
 
                 try {
-                    await setDoc(doc(db, 'users', user.uid), userDoc);
-                    if (import.meta.env.DEV) console.log("✅ Onboarding document created in Firestore");
+                    await retryWithBackoff(
+                        () => setDoc(doc(db, 'users', user.uid), userDoc),
+                        3, 100
+                    );
+                    logger.debug("Onboarding document created in Firestore");
                     set({
                         profile: newUserProfile,
                         onboardingComplete: true,
                         currentView: 'dashboard'
                     });
                 } catch (error) {
-                    console.error("❌ Firestore write failed during onboarding:", error);
+                    logger.error("Firestore write failed during onboarding:", error);
+                    throw new Error('Failed to complete onboarding. Please try again.');
                 }
             },
             setAuthLoading: (loading) => set({ authLoading: loading }),
@@ -299,7 +326,7 @@ export const useStore = create<AppState>()(
 
                 // 1. Generate Instances for All Types
                 state.templates.forEach(t => {
-                    if (t.archived) return; // Skip archived tasks for future generation
+                    if (t.archived) return;
 
                     let targetDate = today;
                     if (t.horizon === 'monthly') targetDate = currentMonthStart;
@@ -325,7 +352,12 @@ export const useStore = create<AppState>()(
                             const backfillId = `${t.id}_${d}`;
                             if (!newInstances.find(i => i.id === backfillId) && t.createdAt <= d) {
                                 newInstances.push({
-                                    id: backfillId, taskId: t.id, userId: t.userId, date: d, status: 'missed', completedAt: null
+                                    id: backfillId,
+                                    taskId: t.id,
+                                    userId: t.userId,
+                                    date: d,
+                                    status: 'missed',
+                                    completedAt: null
                                 });
                                 hasChanges = true;
                             }
@@ -346,10 +378,17 @@ export const useStore = create<AppState>()(
                 if (hasChanges) {
                     set({ instances: newInstances });
                     if (state.user) {
-                        if (import.meta.env.DEV) console.log("📡 Updating instances in Firestore after daily logic...");
-                        setDoc(doc(db, 'users', state.user.uid), { instances: newInstances }, { merge: true })
-                            .then(() => { if (import.meta.env.DEV) console.log("✅ Firestore instances updated."); })
-                            .catch(error => console.error("❌ Firestore write failed:", error));
+                        logger.debug("Updating instances in Firestore after daily logic...");
+                        try {
+                            await retryWithBackoff(
+                                () => setDoc(doc(db, 'users', state.user!.uid), { instances: newInstances }, { merge: true }),
+                                3, 100
+                            );
+                            logger.debug("Firestore instances updated.");
+                        } catch (error) {
+                            logger.error("Firestore write failed:", error);
+                            throw error;
+                        }
                     }
                 }
             },
@@ -358,23 +397,35 @@ export const useStore = create<AppState>()(
 
             addTask: async (taskData) => {
                 const state = get();
-                const xpValue = Math.round(PRIORITY_XP[taskData.priority] * HORIZON_MULT[taskData.horizon]);
+
+                // ✅ FIX: Validate and sanitize all inputs
+                const validatedData = {
+                    title: sanitizeTaskText(taskData.title, 200),
+                    description: sanitizeTaskText(taskData.description || '', 500),
+                    priority: validatePriority(taskData.priority),
+                    horizon: validateHorizon(taskData.horizon),
+                    category: validateCategory(taskData.category),
+                    energyLevel: validateEnergyLevel(taskData.energyLevel),
+                    recurrence: taskData.recurrence || 'once'
+                };
+
+                const xpValue = Math.round(PRIORITY_XP[validatedData.priority] * HORIZON_MULT[validatedData.horizon]);
                 const id = generateId();
                 const now = new Date();
                 const today = format(now, 'yyyy-MM-dd');
 
-                if (import.meta.env.DEV) console.log("📝 Adding goal task:", taskData.title);
+                logger.debug("Adding task:", validatedData.title);
 
                 const newTemplate: TaskTemplate = {
-                    ...taskData,
+                    ...validatedData,
                     id,
                     userId: state.user?.uid,
-                    type: (taskData.horizon === 'monthly' ? 'monthly' : taskData.horizon === 'yearly' ? 'yearly' : taskData.recurrence === 'daily' ? 'daily' : 'one-time') as any,
+                    type: (validatedData.horizon === 'monthly' ? 'monthly' : validatedData.horizon === 'yearly' ? 'yearly' : validatedData.recurrence === 'daily' ? 'daily' : 'one-time') as any,
                     createdAt: now.toISOString(),
                     subtasks: [],
-                    xpValue,
-                    tags: taskData.tags || []
-                };
+                    xpValue: validateXPValue(xpValue),
+                    tags: (taskData.tags || []).map(t => sanitizeTaskText(t, 50))
+                } as any;
 
                 let targetDate = today;
                 if (newTemplate.horizon === 'monthly') targetDate = format(startOfMonth(now), 'yyyy-MM-dd');
@@ -396,39 +447,38 @@ export const useStore = create<AppState>()(
 
                 // 1. Update Local State
                 set({ templates: newTemplates, instances: newInstances });
-                if (import.meta.env.DEV) console.log("💾 Local state updated. Templates count:", get().templates.length);
+                logger.debug("Local state updated. Templates count:", get().templates.length);
 
-                // 2. Persist to Firestore immediately (use setDoc with merge to create or update)
+                // 2. Persist to Firestore with retry logic
                 if (state.user) {
-                    if (import.meta.env.DEV) console.log("📡 Saving new task to Firestore...");
+                    logger.debug("Saving new task to Firestore...");
                     try {
-                        // Use setDoc with merge - creates document if doesn't exist, updates if does
-                        await setDoc(doc(db, 'users', state.user.uid), {
-                            uid: state.user.uid, // Ensure uid is set for security verification
-                            tasks: newTemplates,
-                            instances: newInstances
-                        }, { merge: true });
-                        
-                        // Verify write succeeded by reading back
-                        const verifySnap = await getDoc(doc(db, 'users', state.user.uid));
-                        const verifyData = verifySnap.data();
-                        if (import.meta.env.DEV) {
-                            console.log("✅ Successfully stored in Firestore.", { 
-                                written: { templateCount: newTemplates.length, instanceCount: newInstances.length },
-                                verified: { templateCount: verifyData?.tasks?.length || 0, instanceCount: verifyData?.instances?.length || 0 }
-                            });
-                            
-                            // Extra validation
-                            if ((verifyData?.tasks?.length || 0) < newTemplates.length) {
-                                console.warn("⚠️ WARNING: Not all templates were written to Firestore!");
-                            }
-                        }
+                        await retryWithBackoff(
+                            async () => {
+                                await setDoc(doc(db, 'users', state.user!.uid), {
+                                    uid: state.user!.uid,
+                                    tasks: newTemplates,
+                                    instances: newInstances
+                                }, { merge: true });
+
+                                // Verify write succeeded
+                                const verifySnap = await getDoc(doc(db, 'users', state.user!.uid));
+                                const verifyData = verifySnap.data();
+
+                                if ((verifyData?.tasks?.length || 0) < newTemplates.length) {
+                                    throw new Error('Write verification failed');
+                                }
+                            },
+                            3, 100
+                        );
+
+                        logger.debug("Task successfully saved to Firestore");
                     } catch (error) {
-                        console.error("❌ Firestore write failed:", error);
-                        throw error; // Re-throw so UI knows the save failed
+                        logger.error("Firestore write failed:", error);
+                        throw new Error('Failed to save task. Please try again.');
                     }
                 } else {
-                    if (import.meta.env.DEV) console.warn("⚠️ No user logged in, task only stored locally.");
+                    logger.warn("No user logged in, task only stored locally.");
                 }
             },
 
@@ -438,19 +488,55 @@ export const useStore = create<AppState>()(
                 const instance = state.instances.find(i => i.id === id);
                 const templateId = instance ? instance.taskId : id;
 
-                const newTemplates = state.templates.map(t => t.id === templateId ? { ...t, ...updates } : t);
+                // ✅ FIX: Validate and sanitize all update inputs
+                const validatedUpdates: Partial<TaskTemplate> = {};
+
+                if (updates.title !== undefined) {
+                    validatedUpdates.title = sanitizeTaskText(updates.title, 200);
+                }
+                if (updates.description !== undefined) {
+                    validatedUpdates.description = sanitizeTaskText(updates.description, 500);
+                }
+                if (updates.priority !== undefined) {
+                    validatedUpdates.priority = validatePriority(updates.priority);
+                }
+                if (updates.horizon !== undefined) {
+                    validatedUpdates.horizon = validateHorizon(updates.horizon);
+                }
+                if (updates.category !== undefined) {
+                    validatedUpdates.category = validateCategory(updates.category);
+                }
+                if (updates.energyLevel !== undefined) {
+                    validatedUpdates.energyLevel = validateEnergyLevel(updates.energyLevel);
+                }
+                if (updates.tags !== undefined) {
+                    validatedUpdates.tags = (updates.tags || []).map(t => sanitizeTaskText(t, 50));
+                }
+                // Allow other properties through without modification
+                Object.keys(updates).forEach(key => {
+                    if (!validatedUpdates.hasOwnProperty(key) && (updates as Record<string, any>)[key] !== undefined) {
+                        (validatedUpdates as Record<string, any>)[key] = (updates as Record<string, any>)[key];
+                    }
+                });
+
+                const newTemplates = state.templates.map(t =>
+                    t.id === templateId ? { ...t, ...validatedUpdates } : t
+                );
 
                 // Update Local State
                 set({ templates: newTemplates });
 
                 if (state.user) {
-                    if (import.meta.env.DEV) console.log("📡 Updating task in Firestore...");
+                    logger.debug("Updating task in Firestore...");
                     try {
-                        await setDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }, { merge: true });
-                        if (import.meta.env.DEV) console.log("✅ Firestore update successful.");
+                        await retryWithBackoff(
+                            () => setDoc(doc(db, 'users', state.user!.uid), { tasks: newTemplates }, { merge: true }),
+                            3, 100
+                        );
+                        logger.debug("Firestore update successful.");
                     } catch (error) {
-                        console.error("❌ Firestore write failed:", error);
-                        throw error;
+                        logger.error("Firestore write failed:", error);
+                        throw new Error('Failed to update task. Please try again.');
                     }
                 }
             },
@@ -462,7 +548,7 @@ export const useStore = create<AppState>()(
                 const templateId = instance ? instance.taskId : id;
                 const today = format(new Date(), 'yyyy-MM-dd');
 
-                if (import.meta.env.DEV) console.log("🗑️ Deleting task:", templateId);
+                logger.debug("Deleting task:", templateId);
 
                 // Soft delete: Mark template as archived
                 const newTemplates = state.templates.map(t =>
@@ -477,16 +563,19 @@ export const useStore = create<AppState>()(
                 set({ templates: newTemplates, instances: newInstances });
 
                 if (state.user) {
-                    if (import.meta.env.DEV) console.log("📡 Deleting task from Firestore...");
+                    logger.debug("Deleting task from Firestore...");
                     try {
-                        await setDoc(doc(db, 'users', state.user.uid), {
-                            tasks: newTemplates,
-                            instances: newInstances
-                        }, { merge: true });
-                        if (import.meta.env.DEV) console.log("✅ Firestore deletion successful.");
+                        await retryWithBackoff(
+                            () => setDoc(doc(db, 'users', state.user!.uid), {
+                                tasks: newTemplates,
+                                instances: newInstances
+                            }, { merge: true }),
+                            3, 100
+                        );
+                        logger.debug("Firestore deletion successful.");
                     } catch (error) {
-                        console.error("❌ Firestore write failed:", error);
-                        throw error;
+                        logger.error("Firestore write failed:", error);
+                        throw new Error('Failed to delete task. Please try again.');
                     }
                 }
             },
@@ -499,7 +588,6 @@ export const useStore = create<AppState>()(
 
                 // Fallback for one-time tasks or mismatches
                 if (!instance) {
-                    // Try to find an instance for today for this taskId
                     instance = state.instances.find(i => i.taskId === id && i.date === (date || today));
                 }
 
@@ -541,12 +629,21 @@ export const useStore = create<AppState>()(
                     }
                     if (newNotifications.length === 0) playSound('success');
 
-                    // Streak Logic
+                    // ✅ FIX: Improved Streak Logic with edge cases
                     const lastActive = p.lastActiveDate;
                     if (isTargetToday) {
                         const diff = differenceInDays(parseISO(targetDate), parseISO(lastActive));
-                        if (diff === 1) p.currentStreak += 1; // Consecutive
-                        else if (diff > 1) p.currentStreak = 1; // Broken
+                        // Handle edge cases:
+                        // diff === 0: Same day completion (don't increase streak again)
+                        // diff === 1: Consecutive day (increase)
+                        // diff > 1: Broken streak (reset to 1)
+                        // diff < 0: Future task (shouldn't happen, but don't update)
+                        if (diff === 1) {
+                            p.currentStreak += 1; // Consecutive
+                        } else if (diff > 1) {
+                            p.currentStreak = 1; // Broken, reset to 1
+                        }
+                        // If diff === 0, don't change streak (already counted today)
                         p.lastActiveDate = targetDate;
                     }
                     p.longestStreak = Math.max(p.longestStreak, p.currentStreak);
@@ -573,13 +670,16 @@ export const useStore = create<AppState>()(
                 }
 
                 if (state.user) {
-                    if (import.meta.env.DEV) console.log("📡 Toggling task in Firestore...");
+                    logger.debug("Toggling task in Firestore...");
                     try {
-                        await setDoc(doc(db, 'users', state.user.uid), { instances: newInstances, profile: p }, { merge: true });
-                        if (import.meta.env.DEV) console.log("✅ Firestore toggle successful.");
+                        await retryWithBackoff(
+                            () => setDoc(doc(db, 'users', state.user!.uid), { instances: newInstances, profile: p }, { merge: true }),
+                            3, 100
+                        );
+                        logger.debug("Firestore toggle successful.");
                     } catch (error) {
-                        console.error("❌ Firestore write failed:", error);
-                        throw error;
+                        logger.error("Firestore write failed:", error);
+                        throw new Error('Failed to toggle task. Please try again.');
                     }
                 }
             },
@@ -602,13 +702,16 @@ export const useStore = create<AppState>()(
                 set({ templates: newTemplates });
 
                 if (state.user) {
-                    if (import.meta.env.DEV) console.log("📡 Updating subtask in Firestore...");
+                    logger.debug("Updating subtask in Firestore...");
                     try {
-                        await setDoc(doc(db, 'users', state.user.uid), { tasks: newTemplates }, { merge: true });
-                        if (import.meta.env.DEV) console.log("✅ Firestore subtask update successful.");
+                        await retryWithBackoff(
+                            () => setDoc(doc(db, 'users', state.user!.uid), { tasks: newTemplates }, { merge: true }),
+                            3, 100
+                        );
+                        logger.debug("Firestore subtask update successful.");
                     } catch (error) {
-                        console.error("❌ Firestore write failed:", error);
-                        throw error;
+                        logger.error("Firestore write failed:", error);
+                        throw new Error('Failed to update subtask. Please try again.');
                     }
                 }
             },
@@ -889,50 +992,57 @@ export const useStore = create<AppState>()(
                 const { user, profile, journalEntries } = get();
                 if (!user) return;
 
-                const entryDate = entryData.date || format(new Date(), 'yyyy-MM-dd');
+                const entryDate = validateJournalDate(entryData.date || format(new Date(), 'yyyy-MM-dd'));
                 const weekNumber = getWeek(parseISO(entryDate), { weekStartsOn: 1 });
                 const docId = `${user.uid}_${entryDate}`;
 
-                // Calculate streak bonus
                 const streakCount = getJournalStreak(journalEntries);
                 let bonus = 0;
                 if (streakCount + 1 >= 7) bonus = 50;
                 else if (streakCount + 1 >= 3) bonus = 10;
+                const xpGain = 25 + bonus;
 
-                const xpEarned = 20 + bonus;
-
-                const newEntry = {
-                    ...entryData,
+                const newEntry: JournalEntry = {
+                    id: docId,
                     userId: user.uid,
                     date: entryDate,
                     weekNumber,
-                    xpEarned,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: serverTimestamp()
+                    wins: sanitizeJournalContent(entryData.wins),
+                    learn: sanitizeJournalContent(entryData.learn),
+                    mistakes: sanitizeJournalContent(entryData.mistakes),
+                    tomorrowIntent: sanitizeJournalContent(entryData.tomorrowIntent),
+                    xpGain,
+                    streakBonus: bonus,
+                    createdAt: new Date().toISOString()
                 };
 
-                await setDoc(doc(db, 'journal_entries', docId), newEntry, { merge: true });
-                const finalEntry = { ...newEntry, id: docId } as JournalEntry;
+                try {
+                    logger.debug("Saving journal entry for", entryDate);
 
-                // Update Profile XP
-                const newTotalXP = profile.xp + xpEarned;
-                const newLevel = Math.floor(newTotalXP / XP_PER_LEVEL) + 1;
-                const newProfile = {
-                    ...profile,
-                    xp: newTotalXP,
-                    level: newLevel,
-                };
+                    // ✅ Use setDoc with merge to upsert (prevent duplicates)
+                    await retryWithBackoff(
+                        () => setDoc(doc(db, 'journal_entries', docId), newEntry, { merge: true }),
+                        3, 100
+                    );
 
-                set({
-                    journalEntries: [finalEntry, ...journalEntries.filter(j => j.id !== docId)],
-                    profile: newProfile,
-                    showCelebration: true,
-                    lastCelebrationXP: xpEarned
-                });
+                    // Update local state - replace if already exists, add if new
+                    const updatedEntries = journalEntries.filter(j => j.date !== entryDate);
+                    updatedEntries.push(newEntry);
 
-                // Sync profile
-                await setDoc(doc(db, 'users', user.uid), { profile: newProfile }, { merge: true });
-                playSound('success');
+                    set({
+                        journalEntries: updatedEntries.slice(0, 60),
+                        profile: {
+                            ...profile,
+                            totalXP: (profile?.totalXP || 0) + xpGain,
+                            level: Math.floor(((profile?.totalXP || 0) + xpGain) / XP_PER_LEVEL) + 1
+                        }
+                    });
+
+                    logger.debug("Journal entry saved successfully");
+                } catch (error) {
+                    logger.error("Error saving journal entry:", error);
+                    throw new Error('Failed to save journal entry. Please try again.');
+                }
             },
 
             updateJournalEntry: async (id, updates) => {
@@ -988,8 +1098,10 @@ export const useStore = create<AppState>()(
                     });
 
                     set({ journalEntries: uniqueEntries.slice(0, 60) });
-                } catch (error) {
-                    console.warn("Index not ready or query error, falling back to local sort", error);
+                    logger.debug("Journal entries fetched:", uniqueEntries.length);
+                } catch (error: any) {
+                    // If index not ready, fall back to in-memory sort
+                    logger.warn("Index not ready, using fallback query", error);
                     const qBasic = query(
                         collection(db, 'journal_entries'),
                         where('userId', '==', user.uid)
@@ -997,9 +1109,8 @@ export const useStore = create<AppState>()(
                     const snap = await getDocs(qBasic);
                     const entries = snap.docs
                         .map(d => ({ id: d.id, ...d.data() } as JournalEntry))
-                        .filter(e => e.date) // Ensure date exists
+                        .filter(e => e.date)
                         .sort((a, b) => {
-                            // Sort by date desc, then by createdAt desc for same date
                             if (b.date !== a.date) return b.date.localeCompare(a.date);
                             return (b.createdAt || '').localeCompare(a.createdAt || '');
                         });
@@ -1014,6 +1125,51 @@ export const useStore = create<AppState>()(
                     });
 
                     set({ journalEntries: uniqueEntries.slice(0, 60) });
+                    logger.debug("Journal entries fetched (fallback):", uniqueEntries.length);
+                }
+            },
+
+            createConversation: async (title?: string) => {
+                const { user } = get();
+                if (!user) throw new Error('User not authenticated');
+
+                logger.debug("Creating new AI conversation...");
+
+                // ✅ FIX: Sanitize title before storing
+                const sanitizedTitle = title ? sanitizeConversationTitle(title) : 'New Conversation';
+
+                try {
+                    const conversationData: Omit<AIConversation, 'id'> = {
+                        userId: user.uid,
+                        title: sanitizedTitle,
+                        createdAt: new Date().toISOString(),
+                        lastMessageAt: new Date().toISOString()
+                    };
+
+                    // Create conversation document with retry
+                    const convRef = await retryWithBackoff(
+                        () => addDoc(collection(db, 'ai_conversations'), conversationData),
+                        3, 100
+                    );
+
+                    const newConversation: AIConversation = {
+                        id: convRef.id,
+                        ...conversationData
+                    };
+
+                    // Update state with new conversation
+                    const { conversations } = get();
+                    set({
+                        conversations: [newConversation, ...conversations],
+                        activeConversationId: convRef.id,
+                        activeConversationMessages: []
+                    });
+
+                    logger.debug("Conversation created:", convRef.id);
+                    return newConversation;
+                } catch (error) {
+                    logger.error("Error creating conversation:", error);
+                    throw new Error('Failed to create conversation. Please try again.');
                 }
             },
 
@@ -1029,18 +1185,20 @@ export const useStore = create<AppState>()(
                     const snap = await getDocs(q);
                     const convs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AIConversation));
                     set({ conversations: convs });
+                    logger.debug("Conversations fetched:", convs.length);
 
                     if (get().activeConversationId) {
                         await get().fetchMessages(get().activeConversationId!);
                     }
                 } catch (e) {
-                    console.error("Error fetching conversations:", e);
+                    logger.warn("Error fetching conversations, using fallback", e);
                     const qBasic = query(collection(db, 'ai_conversations'), where('userId', '==', user.uid));
                     const snap = await getDocs(qBasic);
                     const convs = snap.docs
                         .map(d => ({ id: d.id, ...d.data() } as AIConversation))
                         .sort((a, b) => (b.lastMessageAt || '').localeCompare(a.lastMessageAt || ''));
                     set({ conversations: convs });
+                    logger.debug("Conversations fetched (fallback):", convs.length);
                 }
             },
 
@@ -1053,14 +1211,16 @@ export const useStore = create<AppState>()(
                     const snap = await getDocs(q);
                     const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AIChatMessage));
                     set({ activeConversationMessages: msgs });
+                    logger.debug("Messages fetched:", msgs.length);
                 } catch (e) {
-                    console.error("Error fetching messages:", e);
+                    logger.warn("Error fetching messages, using fallback", e);
                     const qBasic = query(collection(db, 'ai_conversations', conversationId, 'messages'));
                     const snap = await getDocs(qBasic);
                     const msgs = snap.docs
                         .map(d => ({ id: d.id, ...d.data() } as AIChatMessage))
                         .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
                     set({ activeConversationMessages: msgs });
+                    logger.debug("Messages fetched (fallback):", msgs.length);
                 }
             },
 
@@ -1075,12 +1235,15 @@ export const useStore = create<AppState>()(
 
             sendAssistantMessage: async (userMsg, context) => {
                 const { user, activeConversationId, conversations, activeConversationMessages } = get();
-                if (!user) return;
+                if (!user) {
+                    throw new Error('User not authenticated');
+                }
 
                 let convId = activeConversationId;
                 const now = new Date().toISOString();
 
                 try {
+                    // Create conversation if doesn't exist
                     if (!convId) {
                         const newConv: Omit<AIConversation, 'id'> = {
                             userId: user.uid,
@@ -1088,50 +1251,82 @@ export const useStore = create<AppState>()(
                             lastMessageAt: now,
                             title: userMsg.slice(0, 40) + (userMsg.length > 40 ? '...' : '')
                         };
-                        const convRef = await addDoc(collection(db, 'ai_conversations'), newConv);
+                        const convRef = await retryWithBackoff(
+                            () => addDoc(collection(db, 'ai_conversations'), newConv),
+                            3, 100
+                        );
                         convId = convRef.id;
                         set({
                             activeConversationId: convId,
                             conversations: [{ id: convId, ...newConv } as AIConversation, ...conversations]
                         });
+                        logger.debug("New conversation created:", convId);
                     }
 
+                    // Save user message
                     const userMessageData: Omit<AIChatMessage, 'id'> = {
                         role: 'user',
                         content: userMsg,
-                        createdAt: now
+                        createdAt: now,
+                        userId: user.uid
                     };
-                    const userMsgRef = await addDoc(collection(db, 'ai_conversations', convId, 'messages'), userMessageData);
+                    const userMsgRef = await retryWithBackoff(
+                        () => addDoc(collection(db, 'ai_conversations', convId!, 'messages'), userMessageData),
+                        3, 100
+                    );
                     const userMsgObj = { id: userMsgRef.id, ...userMessageData } as AIChatMessage;
-
                     set({ activeConversationMessages: [...activeConversationMessages, userMsgObj] });
 
-                    const data = await generateAIResponse(userMsg, context, user.uid);
-                    if (!data) throw new Error("No response from AI");
+                    // Get AI response
+                    logger.debug("Requesting AI response...");
 
+                    // Format history for the AI
+                    const history = activeConversationMessages.map(m => ({
+                        role: m.role as 'user' | 'assistant' | 'system',
+                        content: m.content
+                    }));
+                    // Add current message to history for the AI call
+                    history.push({ role: 'user', content: userMsg });
+
+                    const data = await generateAIResponse(history, context, user.uid);
+                    if (!data) throw new Error("Empty response from AI");
+
+                    // Save assistant message
                     const assistantMessageData: Omit<AIChatMessage, 'id'> = {
                         role: 'assistant',
                         content: data.reflection + '\n\n' + data.focusAdvice,
                         suggestedTasks: data.suggestedTasks,
-                        createdAt: new Date().toISOString()
+                        createdAt: new Date().toISOString(),
+                        userId: user.uid
                     };
-                    const assistantMsgRef = await addDoc(collection(db, 'ai_conversations', convId, 'messages'), assistantMessageData);
+                    const assistantMsgRef = await retryWithBackoff(
+                        () => addDoc(collection(db, 'ai_conversations', convId!, 'messages'), assistantMessageData),
+                        3, 100
+                    );
                     const assistantMsgObj = { id: assistantMsgRef.id, ...assistantMessageData } as AIChatMessage;
 
-                    await setDoc(doc(db, 'ai_conversations', convId), {
-                        lastMessageAt: assistantMessageData.createdAt
-                    }, { merge: true });
+                    // Update conversation last message time
+                    await retryWithBackoff(
+                        () => setDoc(doc(db, 'ai_conversations', convId!), {
+                            lastMessageAt: assistantMessageData.createdAt
+                        }, { merge: true }),
+                        3, 100
+                    );
 
                     set({
                         activeConversationMessages: [...get().activeConversationMessages, assistantMsgObj],
-                        conversations: get().conversations.map(c => c.id === convId ? { ...c, lastMessageAt: assistantMessageData.createdAt } : c)
+                        conversations: get().conversations.map(c =>
+                            c.id === convId ? { ...c, lastMessageAt: assistantMessageData.createdAt } : c
+                        )
                     });
 
+                    logger.debug("AI message sent successfully");
                 } catch (error: any) {
-                    console.error("AI Chat Error:", error);
+                    logger.error("AI Chat Error:", error);
+                    const safeMessage = getSafeErrorMessage(error);
                     get().addNotification({
                         title: 'A.I. Error',
-                        message: error.message || "Failed to get AI response.",
+                        message: safeMessage,
                         type: 'info',
                         icon: '🤖'
                     });
@@ -1142,19 +1337,22 @@ export const useStore = create<AppState>()(
             clearConversation: async (id) => {
                 const { conversations, activeConversationId } = get();
                 try {
+                    logger.debug("Clearing conversation:", id);
                     const msgsSnap = await getDocs(collection(db, 'ai_conversations', id, 'messages'));
                     const batch = writeBatch(db);
                     msgsSnap.docs.forEach(d => batch.delete(d.ref));
                     batch.delete(doc(db, 'ai_conversations', id));
-                    await batch.commit();
+                    await retryWithBackoff(() => batch.commit(), 3, 100);
 
                     set({
                         conversations: conversations.filter(c => c.id !== id),
                         activeConversationId: activeConversationId === id ? null : activeConversationId,
                         activeConversationMessages: activeConversationId === id ? [] : get().activeConversationMessages
                     });
+                    logger.debug("Conversation cleared");
                 } catch (e) {
-                    console.error("Error clearing conversation:", e);
+                    logger.error("Error clearing conversation:", e);
+                    throw new Error('Failed to delete conversation. Please try again.');
                 }
             },
         }),

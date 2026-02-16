@@ -86,6 +86,7 @@ export interface UserProfile {
   preferences: UserPreferences;
   onboardingComplete: boolean;
   username?: string;
+  totalXP?: number; // Total XP earned over time (for stats)
 }
 
 export interface UserPreferences {
@@ -108,6 +109,7 @@ export interface CompletionRecord {
 
 export interface AIChatMessage {
   id: string;
+  userId: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
@@ -125,15 +127,17 @@ export interface AIConversation {
 export interface JournalEntry {
   id: string;
   userId: string;
-  date: string; // ISO string yyyy-mm-dd
+  date: string; // yyyy-mm-dd format
   weekNumber: number;
   wins: string;
+  learn: string;
   mistakes: string;
-  lessons: string;
   tomorrowIntent: string;
-  mood: number; // 1-5
-  xpEarned: number;
+  mood?: 'great' | 'good' | 'okay' | 'tired' | 'frustrated';
+  xpGain: number;
+  streakBonus: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'journal' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup' | 'focus';
