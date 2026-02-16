@@ -3,9 +3,16 @@
     "name": "Attackers Arena – Execute Without Excuses",
     "icons": [
         {
-            "src": "logo.svg",
-            "sizes": "any",
-            "type": "image/svg+xml"
+            "src": "/logo.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/logo.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
         }
     ],
     "start_url": ".",
