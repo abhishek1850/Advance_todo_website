@@ -46,8 +46,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       
-      // Create (first signup) - DISABLED per request to remove sign up feature
-      allow create: if false;
+      // Create (first signup) - Re-enabled to allow new users
+      allow create: if isOwner(userId);
 
       // Read (own profile only)
       allow read: if isOwner(userId);

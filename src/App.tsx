@@ -23,6 +23,7 @@ const ProfileView = lazy(() => import('./views/ProfileView'));
 const AssistantView = lazy(() => import('./views/AssistantView'));
 const FocusView = lazy(() => import('./views/FocusView'));
 const JournalView = lazy(() => import('./views/JournalView'));
+const CompleteSignup = lazy(() => import('./views/CompleteSignup'));
 const VerificationPending = lazy(() => import('./views/VerificationPending'));
 
 import { auth } from './lib/firebase';
@@ -64,19 +65,12 @@ const VIEW_KEYS: Record<string, ViewType> = {
 
 function App() {
   const {
-    user, setUser, authLoading, setAuthLoading,
-    currentView, setView, openTaskModal, showCelebration, lastCelebrationXP, dismissCelebration, isTaskModalOpen, profile,
-    checkDailyLogic
+    user, setUser, authLoading, setAuthLoading, onboardingComplete,
+    currentView, setView, openTaskModal, showCelebration, lastCelebrationXP, dismissCelebration, isTaskModalOpen, profile
   } = useStore();
 
   // Security: auto-logout after 30 minutes of inactivity
   useSessionTimeout(30 * 60 * 1000);
-
-  useEffect(() => {
-    if (user) {
-      checkDailyLogic();
-    }
-  }, [user, checkDailyLogic]);
 
   // Dynamic document title
   useEffect(() => {
@@ -95,7 +89,6 @@ function App() {
     // Firebase Auth State Listener
     const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
       setUser(user);
-      setAuthLoading(false);
     });
 
     return () => unsubscribe();
@@ -153,6 +146,15 @@ function App() {
     return (
       <Suspense fallback={<div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>Loading...</div>}>
         <VerificationPending />
+      </Suspense>
+    );
+  }
+
+  // ✅ New Onboarding Check
+  if (!onboardingComplete) {
+    return (
+      <Suspense fallback={<div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>Loading...</div>}>
+        <CompleteSignup />
       </Suspense>
     );
   }

@@ -200,68 +200,57 @@ export const useStore = create<AppState>()(
                     return;
                 }
 
-                // ✅ FIX 1: Check email verification first
-                if (!user.emailVerified) {
+                // Security/UX: Bypass verification for Google users as they are already verified
+                const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
+                const isVerified = user.emailVerified || isGoogleUser;
+
+                if (!isVerified) {
                     logger.warn("Email not verified for user:", user.uid);
                     set({ user, authLoading: false });
                     return;
                 }
 
-                // 1. RESET STATE to initial FIRST - this clears any stale localStorage data
+                // 1. RESET STATE to initial FIRST
                 logger.debug("Resetting state for fresh fetch...");
                 set({ user, ...INITIAL_STATE, authLoading: true });
 
                 try {
-                    // 2. Fetch User Data from Firestore with retry logic
-                    logger.debug("Fetching user data from Firestore...");
-
-                    let docSnap;
-                    try {
-                        const docRef = doc(db, 'users', user.uid);
-                        docSnap = await retryWithBackoff(() => getDoc(docRef), 3, 100);
-                    } catch (error) {
-                        logger.error("Failed to fetch user data after retries:", error);
-                        throw new Error('Failed to load user profile. Please try again.');
-                    }
+                    // 2. Fetch User Data from Firestore
+                    const docRef = doc(db, 'users', user.uid);
+                    const docSnap = await retryWithBackoff(() => getDoc(docRef), 3, 100);
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        logger.debug("Firestore data received:", {
-                            templatesCount: data.tasks?.length || 0,
-                            instancesCount: data.instances?.length || 0
-                        });
 
-                        // 3. Verify Ownership (Security check)
+                        // Verify Ownership
                         if (data.uid && data.uid !== user.uid) {
-                            console.error('⛔ SECURITY ALERT: Data ownership mismatch!');
-                            throw new Error('Security validation failed');
+                            throw new Error('Security validation failed: owner mismatch');
                         }
 
-                        // 4. CRITICAL: Update State - Replace completely with Firestore data
-                        const newState = {
+                        // 4. Update State - Replace with Firestore data
+                        set({
                             templates: data.tasks || [],
                             instances: data.instances || [],
                             tasks: [],
                             profile: { ...get().profile, ...data.profile, onboardingComplete: true },
                             onboardingComplete: true,
                             completionHistory: data.completionHistory || [],
-                        };
+                        });
 
-                        set(newState);
-                        logger.debug("State updated from Firestore. Templates:", get().templates.length);
-
-                        // Generate instances immediately
+                        logger.debug("User data loaded successfully.");
                         await get().checkDailyLogic();
                         await get().fetchJournalEntries();
                     } else {
-                        logger.debug("New user detected (no Firestore doc yet)");
+                        // New user: explicitly trigger onboarding
+                        logger.debug("New user detected (no profile doc). Redirecting to onboarding.");
+                        set({ onboardingComplete: false });
                     }
                 } catch (error) {
                     logger.error("Error loading user data from Firestore:", error);
-                    throw error;
+                    // We don't throw here to avoid unhandled rejections, 
+                    // but we stay in the un-onboarded state which is safer.
                 } finally {
                     set({ authLoading: false });
-                    logger.debug("Auth loading finished.");
                 }
             },
 
@@ -342,11 +331,12 @@ export const useStore = create<AppState>()(
                     if (t.horizon === 'yearly') targetDate = currentYearStart;
 
                     const instanceId = `${t.id}_${targetDate}`;
-                    if (!newInstances.find(i => i.id === instanceId)) {
+                    const existing = newInstances.find(i => i.id === instanceId);
+                    if (!existing) {
                         newInstances.push({
                             id: instanceId,
                             taskId: t.id,
-                            userId: t.userId,
+                            userId: t.userId || state.user?.uid,
                             date: targetDate,
                             status: 'pending',
                             completedAt: null
@@ -384,21 +374,21 @@ export const useStore = create<AppState>()(
                     return i;
                 });
 
-                if (hasChanges) {
+                if (hasChanges && state.user) {
                     set({ instances: newInstances });
-                    if (state.user) {
-                        logger.debug("Updating instances in Firestore after daily logic...");
-                        try {
-                            await retryWithBackoff(
-                                () => setDoc(doc(db, 'users', state.user!.uid), { instances: newInstances }, { merge: true }),
-                                3, 100
-                            );
-                            logger.debug("Firestore instances updated.");
-                        } catch (error) {
-                            logger.error("Firestore write failed:", error);
-                            throw error;
-                        }
+                    logger.debug("Updating instances in Firestore after daily logic...", { count: newInstances.length });
+                    try {
+                        await retryWithBackoff(
+                            () => setDoc(doc(db, 'users', state.user!.uid), { instances: newInstances }, { merge: true }),
+                            3, 100
+                        );
+                        logger.debug("Firestore instances updated.");
+                    } catch (error) {
+                        logger.error("Firestore write failed:", error);
+                        // Don't throw here to avoid blocking UI, but log it
                     }
+                } else if (hasChanges) {
+                    set({ instances: newInstances });
                 }
             },
             setView: (view) => set({ currentView: view }),
@@ -1388,6 +1378,7 @@ export const useStore = create<AppState>()(
                 // Firestore is the single source of truth
                 // These MUST be fetched fresh on every setUser() call
                 profile: state.profile,
+                onboardingComplete: state.onboardingComplete,
                 completionHistory: state.completionHistory,
                 currentView: state.currentView,
             }),

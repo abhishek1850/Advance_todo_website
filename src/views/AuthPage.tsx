@@ -2,9 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Shield } from 'lucide-react';
 import { auth, googleProvider } from '../lib/firebase';
-import { signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { signInWithPopup } from 'firebase/auth';
 import { useStore } from '../store';
 
 export default function AuthPage() {
@@ -20,18 +18,7 @@ export default function AuthPage() {
             const user = result.user;
 
             // Allow Google Auth logic:
-            // Check if user doc exists
-            const docRef = doc(db, 'users', user.uid);
-            const docSnap = await getDoc(docRef);
-
-            if (!docSnap.exists()) {
-                // Account (Firestore doc) does not exist -> Deny access
-                await signOut(auth);
-                setError("Account does not exist. Please contact an administrator.");
-                setLoading(false);
-                return;
-            }
-
+            // Previously restricted to existing users, now open to all.
             setUser(user);
         } catch (err: any) {
             console.error(err);

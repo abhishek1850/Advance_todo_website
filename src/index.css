@@ -2715,3 +2715,22 @@ body::before {
     font-size: 24px;
   }
 }
+
+/* ===== UTILITY CLASSES ===== */
+.mesh-background {
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-mesh);
+  pointer-events: none;
+  z-index: -1;
+  animation: meshFloat 20s ease-in-out infinite alternate;
+}
+
+.focus-ring {
+  transition: all 0.2s ease;
+}
+
+.focus-ring:focus {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 4px var(--accent-primary-glow) !important;
+}
