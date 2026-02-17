@@ -9,6 +9,7 @@ import {
     Globe, Lock, Info, Cpu, Menu, X
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { sanitizeTaskText, decodeHTMLEntities } from '../lib/sanitize';
 
 export default function AssistantView() {
     const {
@@ -30,8 +31,11 @@ export default function AssistantView() {
         fetchConversations();
     }, []);
 
+    const hasProcessed = useRef(false);
+
     useEffect(() => {
-        if (pendingAssistantMessage && !loading) {
+        if (pendingAssistantMessage && !loading && !hasProcessed.current) {
+            hasProcessed.current = true;
             handleSend(pendingAssistantMessage);
             setPendingAssistantMessage(undefined);
         }
@@ -67,21 +71,25 @@ export default function AssistantView() {
         }
     };
 
-    const handleAddTask = (task: any) => {
-        addTask({
-            title: task.title,
-            description: 'AI Suggested Task',
-            priority: task.priority?.toLowerCase() || 'medium',
-            horizon: 'daily',
-            category: 'Work',
-            dueDate: format(new Date(), 'yyyy-MM-dd'),
-            energyLevel: 'medium',
-            estimatedMinutes: parseInt(task.estimatedTime) || 30,
-            subtasks: [],
-            tags: ['AI Suggested'],
-            recurrence: 'none',
-            type: 'daily' as const
-        });
+    const handleAddTask = async (task: any) => {
+        try {
+            await addTask({
+                title: task.title,
+                description: 'AI Suggested Task',
+                priority: task.priority?.toLowerCase() || 'medium',
+                horizon: 'daily',
+                category: 'Work',
+                dueDate: format(new Date(), 'yyyy-MM-dd'),
+                energyLevel: 'medium',
+                estimatedMinutes: parseInt(task.estimatedTime) || 30,
+                subtasks: [],
+                tags: ['AI Suggested'],
+                recurrence: 'none',
+                type: 'daily' as const
+            });
+        } catch (err: any) {
+            setError(err.message || "Failed to add task");
+        }
     };
 
     return (
@@ -115,8 +123,40 @@ export default function AssistantView() {
 
                 <div className="conversation-list">
                     <div className="list-label">
-                        <History size={14} />
-                        Recent Missions
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <History size={14} />
+                            Recent Missions
+                        </div>
+                        {conversations.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (window.confirm('Clear all mission data? This cannot be undone.')) {
+                                        conversations.forEach(conv => clearConversation(conv.id));
+                                    }
+                                }}
+                                style={{
+                                    padding: '4px 8px',
+                                    fontSize: '12px',
+                                    background: 'rgba(255, 59, 48, 0.1)',
+                                    color: '#ff3b30',
+                                    border: '1px solid rgba(255, 59, 48, 0.2)',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: 500,
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 59, 48, 0.2)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.4)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 59, 48, 0.1)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.2)';
+                                }}
+                            >
+                                Clear All
+                            </button>
+                        )}
                     </div>
                     {conversations.map(conv => (
                         <div
@@ -280,12 +320,13 @@ export default function AssistantView() {
                                             <div className="suggested-header">SUGGESTED RECON TASKS</div>
                                             <div className="tasks-grid">
                                                 {msg.suggestedTasks.map((t: any, i: number) => {
-                                                    const exists = tasks.some(ex => ex.title.toLowerCase() === t.title.toLowerCase() && !ex.isCompleted);
+                                                    const sanitizedSuggestedTitle = sanitizeTaskText(t.title, 200).toLowerCase();
+                                                    const exists = tasks.some(ex => ex.title.toLowerCase() === sanitizedSuggestedTitle && !ex.isCompleted);
                                                     return (
                                                         <div key={i} className="suggested-item">
                                                             <div className="item-info">
                                                                 <div className="item-title">
-                                                                    {t.title}
+                                                                    {decodeHTMLEntities(t.title)}
                                                                     {exists && <span className="active-tag">Active</span>}
                                                                 </div>
                                                                 <div className="item-meta">

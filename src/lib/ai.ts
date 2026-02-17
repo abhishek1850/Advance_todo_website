@@ -105,7 +105,7 @@ CRITICAL: Do not use HTML escape codes in your response. Output clean UTF-8 text
     }
 
     // DEV FALLBACK: If proxy missing (404) and we are in dev, try direct Groq
-    if (response.status === 404 && !isProd) {
+    if (response.status === 404 && import.meta.env.DEV) {
       const devKey = import.meta.env.VITE_GROQ_API_KEY;
       if (devKey) {
         logger.debug('Direct dev fallback triggered (Proxy 404)');

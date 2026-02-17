@@ -4,6 +4,7 @@ import FocusTimer from '../components/FocusTimer';
 import { useStore } from '../store';
 import { Quote } from 'lucide-react';
 import type { Task } from '../types';
+import { decodeHTMLEntities } from '../lib/sanitize';
 
 export default function FocusView() {
     const { getTodaysTasks } = useStore();
@@ -66,7 +67,7 @@ export default function FocusView() {
                                 Current Task
                             </div>
                             <div style={{ fontSize: 18, fontWeight: 500 }}>
-                                {currentTask.title}
+                                {decodeHTMLEntities(currentTask.title)}
                             </div>
                         </div>
                     ) : (

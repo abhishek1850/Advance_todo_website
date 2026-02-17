@@ -3,6 +3,7 @@ import { Check, Clock, Trash2, Edit3, Zap } from 'lucide-react';
 import type { Task } from '../types';
 import { useStore } from '../store';
 import { format, parseISO, isPast, isToday } from 'date-fns';
+import { decodeHTMLEntities } from '../lib/sanitize';
 
 interface TaskCardProps {
     task: Task;
@@ -40,8 +41,8 @@ export default function TaskCard({ task, date }: TaskCardProps) {
                     {task.isCompleted && <Check size={14} strokeWidth={3} />}
                 </motion.button>
                 <div className="task-info" onClick={() => openTaskModal(task)}>
-                    <div className="task-title">{task.title}</div>
-                    {task.description && <div className="task-description">{task.description}</div>}
+                    <div className="task-title">{decodeHTMLEntities(task.title)}</div>
+                    {task.description && <div className="task-description">{decodeHTMLEntities(task.description)}</div>}
 
                     {/* Subtask progress */}
                     {totalSubtasks > 0 && (

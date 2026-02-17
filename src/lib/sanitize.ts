@@ -16,16 +16,10 @@ export const sanitizeString = (input: unknown, maxLength = 500): string => {
   // Remove control characters (Ctrl+A, etc.)
   clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
-  // Remove HTML/script tags
+  // Remove HTML/script tags to prevent injection, but DO NOT escape entities 
+  // like & or ' because React handles that automatically and manual escaping
+  // results in double-escaped text in the UI (e.g. &#x27;).
   clean = clean.replace(/<[^>]*>/g, '');
-
-  // Escape HTML entities to prevent rendering as HTML
-  clean = clean
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
 
   return clean;
 };
@@ -225,4 +219,18 @@ export const validateJournalDate = (date: unknown): string => {
  */
 export const sanitizeConversationTitle = (input: unknown): string => {
   return sanitizeString(input, 200);
+};
+
+/**
+ * Decode common HTML entities back to characters for display
+ * Used to handle legacy data that was manually escaped
+ */
+export const decodeHTMLEntities = (text: string): string => {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'");
 };

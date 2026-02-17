@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import type { TaskHorizon, TaskPriority, EnergyLevel, RecurrencePattern } from '../types';
 import { format } from 'date-fns';
 import { WeatherIcon } from '../lib/weather';
+import { decodeHTMLEntities } from '../lib/sanitize';
 
 const CATEGORIES = ['Work', 'Personal', 'Health', 'Learning', 'Finance', 'Social', 'Creative', 'Errands'];
 
@@ -24,8 +25,8 @@ export default function TaskModal() {
 
     useEffect(() => {
         if (editingTask) {
-            setTitle(editingTask.title);
-            setDescription(editingTask.description);
+            setTitle(decodeHTMLEntities(editingTask.title));
+            setDescription(decodeHTMLEntities(editingTask.description));
             setHorizon(editingTask.horizon);
             setPriority(editingTask.priority);
             setCategory(editingTask.category);

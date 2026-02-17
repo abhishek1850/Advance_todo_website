@@ -140,7 +140,7 @@ export interface JournalEntry {
   updatedAt?: string;
 }
 
-export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'journal' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'complete-signup' | 'focus';
+export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'journal' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'focus';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;

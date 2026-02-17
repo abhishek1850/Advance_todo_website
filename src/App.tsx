@@ -23,6 +23,7 @@ const ProfileView = lazy(() => import('./views/ProfileView'));
 const AssistantView = lazy(() => import('./views/AssistantView'));
 const FocusView = lazy(() => import('./views/FocusView'));
 const JournalView = lazy(() => import('./views/JournalView'));
+const VerificationPending = lazy(() => import('./views/VerificationPending'));
 
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -143,6 +144,15 @@ function App() {
     return (
       <Suspense fallback={<div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>Loading...</div>}>
         <AuthPage />
+      </Suspense>
+    );
+  }
+
+  // ✅ New Verification Check
+  if (!user.emailVerified) {
+    return (
+      <Suspense fallback={<div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>Loading...</div>}>
+        <VerificationPending />
       </Suspense>
     );
   }

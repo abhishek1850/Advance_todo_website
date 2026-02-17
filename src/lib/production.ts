@@ -22,7 +22,7 @@ export const retryWithBackoff = async <T>(
       return await operation();
     } catch (error) {
       lastError = error as Error;
-      
+
       // Don't retry on auth errors or validation errors
       if (error instanceof Error) {
         if (error.message.includes('auth') || error.message.includes('permission')) {
@@ -81,13 +81,20 @@ export const logger = new Logger(import.meta.env.DEV);
  * Hides technical details from users, logs full error internally
  */
 export const getSafeErrorMessage = (error: any): string => {
+  const rawMessage = error?.message || 'An unknown error occurred';
+
   // Only log full error internally
   if (error instanceof Error) {
     logger.error('Detailed error:', error);
   }
 
+  // In development, show the raw error for easier debugging
+  if (import.meta.env.DEV) {
+    return rawMessage;
+  }
+
   // Return generic message to user
-  const message = error?.message?.toLowerCase() || '';
+  const message = rawMessage.toLowerCase();
 
   if (message.includes('auth')) return 'Authentication failed. Please try logging in again.';
   if (message.includes('permission')) return 'You do not have permission to perform this action.';

@@ -105,7 +105,7 @@ interface AppState {
     onboardingComplete: boolean;
     setUser: (user: User | null) => void;
     setAuthLoading: (loading: boolean) => void;
-    setView: (view: ViewType | 'complete-signup') => void;
+    setView: (view: ViewType) => void;
     completeOnboarding: (data: { username: string; name: string }) => Promise<void>;
     setFilter: (filter: TaskFilter) => void;
     addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'isCompleted' | 'xpValue' | 'postponedCount'>) => Promise<void>;
@@ -147,6 +147,9 @@ interface AppState {
     fetchMessages: (conversationId: string) => Promise<void>;
     setActiveConversation: (id: string | null) => void;
     sendAssistantMessage: (content: string, context: any) => Promise<void>;
+    assistantLoading: boolean;
+    isProcessingPending: boolean;
+    setAssistantLoading: (loading: boolean) => void;
     clearConversation: (id: string) => Promise<void>;
 }
 
@@ -200,8 +203,8 @@ export const useStore = create<AppState>()(
                 // ✅ FIX 1: Check email verification first
                 if (!user.emailVerified) {
                     logger.warn("Email not verified for user:", user.uid);
-                    set({ user: null, authLoading: false });
-                    throw new Error('Please verify your email before accessing the app.');
+                    set({ user, authLoading: false });
+                    return;
                 }
 
                 // 1. RESET STATE to initial FIRST - this clears any stale localStorage data
@@ -312,8 +315,14 @@ export const useStore = create<AppState>()(
                 }
             },
             setAuthLoading: (loading) => set({ authLoading: loading }),
+            assistantLoading: false,
+            isProcessingPending: false,
+            setAssistantLoading: (loading) => set({ assistantLoading: loading }),
             pendingAssistantMessage: undefined,
-            setPendingAssistantMessage: (msg) => set({ pendingAssistantMessage: msg }),
+            setPendingAssistantMessage: (msg: string | undefined) => set({
+                pendingAssistantMessage: msg,
+                isProcessingPending: false
+            }),
             checkDailyLogic: async () => {
                 const state = get();
                 const now = new Date();
@@ -1203,9 +1212,13 @@ export const useStore = create<AppState>()(
             },
 
             fetchMessages: async (conversationId) => {
+                const { user } = get();
+                if (!user) return;
+
                 try {
                     const q = query(
                         collection(db, 'ai_conversations', conversationId, 'messages'),
+                        where('userId', '==', user.uid),
                         orderBy('createdAt', 'asc')
                     );
                     const snap = await getDocs(q);
@@ -1214,7 +1227,7 @@ export const useStore = create<AppState>()(
                     logger.debug("Messages fetched:", msgs.length);
                 } catch (e) {
                     logger.warn("Error fetching messages, using fallback", e);
-                    const qBasic = query(collection(db, 'ai_conversations', conversationId, 'messages'));
+                    const qBasic = query(collection(db, 'ai_conversations', conversationId, 'messages'), where('userId', '==', user.uid));
                     const snap = await getDocs(qBasic);
                     const msgs = snap.docs
                         .map(d => ({ id: d.id, ...d.data() } as AIChatMessage))
@@ -1243,6 +1256,8 @@ export const useStore = create<AppState>()(
                 const now = new Date().toISOString();
 
                 try {
+                    set({ assistantLoading: true });
+                    logger.debug("Step 1: Creating conversation document...");
                     // Create conversation if doesn't exist
                     if (!convId) {
                         const newConv: Omit<AIConversation, 'id'> = {
@@ -1263,6 +1278,7 @@ export const useStore = create<AppState>()(
                         logger.debug("New conversation created:", convId);
                     }
 
+                    logger.debug("Step 2: Saving user message to Firestore...");
                     // Save user message
                     const userMessageData: Omit<AIChatMessage, 'id'> = {
                         role: 'user',
@@ -1278,7 +1294,7 @@ export const useStore = create<AppState>()(
                     set({ activeConversationMessages: [...activeConversationMessages, userMsgObj] });
 
                     // Get AI response
-                    logger.debug("Requesting AI response...");
+                    logger.debug("Step 3: Requesting AI response from Neural Core...");
 
                     // Format history for the AI
                     const history = activeConversationMessages.map(m => ({
@@ -1291,6 +1307,7 @@ export const useStore = create<AppState>()(
                     const data = await generateAIResponse(history, context, user.uid);
                     if (!data) throw new Error("Empty response from AI");
 
+                    logger.debug("Step 4: Saving assistant response to Firestore...");
                     // Save assistant message
                     const assistantMessageData: Omit<AIChatMessage, 'id'> = {
                         role: 'assistant',
@@ -1305,6 +1322,7 @@ export const useStore = create<AppState>()(
                     );
                     const assistantMsgObj = { id: assistantMsgRef.id, ...assistantMessageData } as AIChatMessage;
 
+                    logger.debug("Step 5: Updating conversation timestamp...");
                     // Update conversation last message time
                     await retryWithBackoff(
                         () => setDoc(doc(db, 'ai_conversations', convId!), {
@@ -1320,9 +1338,13 @@ export const useStore = create<AppState>()(
                         )
                     });
 
-                    logger.debug("AI message sent successfully");
+                    logger.debug("AI message cycle complete");
                 } catch (error: any) {
-                    logger.error("AI Chat Error:", error);
+                    logger.error("AI Chat Error Details:", {
+                        message: error.message,
+                        code: error.code,
+                        convId: convId
+                    });
                     const safeMessage = getSafeErrorMessage(error);
                     get().addNotification({
                         title: 'A.I. Error',
@@ -1331,6 +1353,8 @@ export const useStore = create<AppState>()(
                         icon: '🤖'
                     });
                     throw error;
+                } finally {
+                    set({ assistantLoading: false });
                 }
             },
 

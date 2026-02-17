@@ -46,11 +46,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       
-      // Create (first signup)
-      allow create: if isOwner(userId)
-        && hasRequiredFields(['uid', 'email', 'createdAt'])
-        && request.resource.data.uid == userId
-        && request.resource.data.email == request.auth.token.email;
+      // Create (first signup) - DISABLED per request to remove sign up feature
+      allow create: if false;
 
       // Read (own profile only)
       allow read: if isOwner(userId);
@@ -98,47 +95,32 @@ service cloud.firestore {
 
     match /ai_conversations/{conversationId} {
       
-      // Create new conversation (user must own it)
-      allow create: if isAuth()
-        && request.resource.data.userId == request.auth.uid
-        && hasRequiredFields(['userId', 'createdAt'])
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.title.size() <= 200;
+      // Create new conversation
+      allow create: if isAuth() 
+        && request.resource.data.userId == request.auth.uid;
 
-      // Read own conversations only
-      allow read: if isAuth()
+      // Read own conversations
+      allow read: if isAuth() 
         && resource.data.userId == request.auth.uid;
 
-      // Update conversation metadata only (cannot change owner)
-      allow update: if isAuth()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid  // Cannot change owner
-        && request.resource.data.createdAt == resource.data.createdAt  // Immutable
-        && request.resource.data.keys().hasOnly(['userId','createdAt','lastMessageAt','title'])
-        && request.resource.data.title.size() <= 200;
-
-      // Delete own conversation (cascade-delete messages via Cloud Function)
-      allow delete: if isAuth()
+      // Update own conversation
+      allow update: if isAuth() 
         && resource.data.userId == request.auth.uid;
 
-      // -------- Messages Subcollection --------
-      // Strict: Must belong to user's conversation
+      // Delete own conversation
+      allow delete: if isAuth() 
+        && resource.data.userId == request.auth.uid;
+
       match /messages/{messageId} {
         
-        // Create message (only in own conversation)
+        // Create message in own conversation
         allow create: if isAuth()
-          && request.resource.data.userId == request.auth.uid
-          && resource(path: "/databases/$(database)/documents/ai_conversations/$(conversationId)").data.userId == request.auth.uid
-          && hasRequiredFields(['userId', 'role', 'content', 'createdAt'])
-          && ['user', 'assistant'].includes(request.resource.data.role)
-          && request.resource.data.content.size() > 0
-          && request.resource.data.content.size() < 50000;  // Max 50KB per message
+          && request.resource.data.userId == request.auth.uid;
 
-        // Read messages in own conversation only
+        // Read messages
         allow read: if isAuth()
-          && resource(path: "/databases/$(database)/documents/ai_conversations/$(conversationId)").data.userId == request.auth.uid;
+          && resource.data.userId == request.auth.uid;
 
-        // Prevent message editing/deletion (immutable - audit trail)
         allow update, delete: if false;
       }
     }

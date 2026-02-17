@@ -8,6 +8,7 @@ import ProgressRing from '../components/ProgressRing';
 import { DailyMotivation, StreakMilestone, ProductivityTip } from '../components/MotivationEngine';
 import { getSmartGreeting, WeatherIcon } from '../lib/weather';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { decodeHTMLEntities } from '../lib/sanitize';
 
 // Animated counter hook
 function useAnimatedCounter(target: number, duration = 1200) {
@@ -98,8 +99,8 @@ export default function Dashboard() {
             {focus ? (
                 <motion.div className="focus-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                     <div className="focus-card-label"><Sparkles size={14} /> Today's Focus</div>
-                    <div className="focus-card-title">{focus.title}</div>
-                    {focus.description && <div className="focus-card-desc">{focus.description}</div>}
+                    <div className="focus-card-title">{decodeHTMLEntities(focus.title)}</div>
+                    {focus.description && <div className="focus-card-desc">{decodeHTMLEntities(focus.description)}</div>}
                     <div className="focus-card-meta">
                         <span className="task-tag horizon">{focus.horizon}</span>
                         <span className={`task-tag energy-${focus.energyLevel}`}>{focus.energyLevel === 'low' ? '🔋' : focus.energyLevel === 'medium' ? '⚡' : '🔥'} {focus.energyLevel}</span>
@@ -148,7 +149,7 @@ export default function Dashboard() {
                         </div>
                         <div>
                             <div style={{ fontWeight: 600, color: 'var(--accent-danger)', fontSize: 13, marginBottom: 2 }}>COACH INSIGHT</div>
-                            <div style={{ fontSize: 14 }}>"{mostStagnant.title}" has been stuck for <span style={{ fontWeight: 700 }}>{mostStagnant.daysPending} days</span>.</div>
+                            <div style={{ fontSize: 14 }}>"{decodeHTMLEntities(mostStagnant.title)}" has been stuck for <span style={{ fontWeight: 700 }}>{mostStagnant.daysPending} days</span>.</div>
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
