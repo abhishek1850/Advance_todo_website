@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut, Download, Zap, History, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Sun, Calendar, Target, BarChart3, Trophy, Menu, X, User, BrainCircuit, LogOut, Download, Zap, History, BookOpen, Swords } from 'lucide-react';
 import { usePWA } from '../hooks/usePWA';
 import { useStore } from '../store';
 import { auth } from '../lib/firebase';
@@ -22,6 +22,7 @@ const navItems: { id: ViewType; label: string; icon: React.ReactNode; shortcut: 
     { id: 'profile', label: 'Profile', icon: <User size={20} />, shortcut: '7' },
     { id: 'assistant', label: 'AI Coach', icon: <BrainCircuit size={20} />, shortcut: '8' },
     { id: 'focus', label: 'Focus Mode', icon: <Zap size={20} />, shortcut: '9' },
+    { id: 'attackmode', label: 'Attack Mode', icon: <Swords size={20} />, shortcut: 'a' },
 ];
 
 export default function Sidebar() {

@@ -140,7 +140,7 @@ export interface JournalEntry {
   updatedAt?: string;
 }
 
-export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'journal' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'focus';
+export type ViewType = 'dashboard' | 'today' | 'yesterday' | 'history' | 'journal' | 'monthly' | 'yearly' | 'analytics' | 'achievements' | 'profile' | 'assistant' | 'focus' | 'attackmode';
 
 export interface TaskFilter {
   horizon?: TaskHorizon;
@@ -149,4 +149,98 @@ export interface TaskFilter {
   energyLevel?: EnergyLevel;
   isCompleted?: boolean;
   search?: string;
+}
+
+// ============================================
+// ⚔️ ATTACK MODE TYPES
+// ============================================
+
+export type AttackSessionType = 'simulation' | 'reflection' | 'stress' | 'mission' | 'pause';
+
+export type ScenarioCategory =
+  | 'workplace_conflict'
+  | 'social_pressure'
+  | 'financial_stress'
+  | 'time_pressure'
+  | 'ethical_dilemma'
+  | 'negotiation'
+  | 'risk_tradeoff';
+
+export interface ScenarioOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export interface AttackScenario {
+  id: string;
+  category: ScenarioCategory;
+  title: string;
+  description: string;
+  context: string;
+  options: ScenarioOption[];
+  partialInfo?: string; // For stress mode
+  timeLimit?: number;   // seconds, for stress mode
+}
+
+export interface CognitiveAnalysis {
+  emotionalBias: string;
+  logicalFlaws: string[];
+  impulseVsStrategy: string;
+  riskAwareness: string;
+  longVsShortTerm: string;
+  overallAssessment: string;
+  keyInsight: string;
+  improvementVector: string;
+}
+
+export interface BiasDetectionResult {
+  detectedBiases: string[];
+  reasoningGaps: string[];
+  strategicImprovement: string;
+  emotionalTriggers: string[];
+}
+
+export interface CognitiveMetrics {
+  emotionalReactivityScore: number;   // 0-100, lower is better
+  strategicClarityScore: number;      // 0-100, higher is better
+  biasFrequency: number;              // detected biases count
+  impulseControlScore: number;        // 0-100, higher is better
+  decisionConfidenceScore: number;    // 0-100
+  reactionTimeMs?: number;            // For stress mode
+}
+
+export interface AttackModeSession {
+  id: string;
+  userId: string;
+  type: AttackSessionType;
+  scenario: AttackScenario | null;
+  userResponse: string;
+  selectedOptionId?: string;
+  aiAnalysis: CognitiveAnalysis | BiasDetectionResult | null;
+  createdAt: string;
+  cognitiveMetrics: CognitiveMetrics;
+  missionTitle?: string;    // For observation missions
+  completed: boolean;
+}
+
+export interface ObservationMission {
+  id: string;
+  title: string;
+  description: string;
+  objective: string;
+  exampleInsights: string[];
+  difficulty: 'basic' | 'intermediate' | 'advanced';
+}
+
+export interface AttackModeAnalytics {
+  totalSessions: number;
+  sessionsByType: Record<AttackSessionType, number>;
+  averageMetrics: CognitiveMetrics;
+  recentTrend: {
+    emotionalReactivity: 'improving' | 'stable' | 'declining';
+    strategicClarity: 'improving' | 'stable' | 'declining';
+    impulseControl: 'improving' | 'stable' | 'declining';
+  };
+  lastSessionDate: string | null;
 }

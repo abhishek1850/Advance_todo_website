@@ -546,20 +546,37 @@ export const useStore = create<AppState>()(
                 const instance = state.instances.find(i => i.id === id);
                 const templateId = instance ? instance.taskId : id;
                 const today = format(new Date(), 'yyyy-MM-dd');
+                const template = state.templates.find(t => t.id === templateId);
 
                 logger.debug("Deleting task:", templateId);
+
+                // ── XP Deduction Fix ────────────────────────────────────────
+                // Find all completed instances for this template so we can
+                // subtract the XP the user earned from completing them.
+                const completedInstances = state.instances.filter(
+                    i => i.taskId === templateId && i.status === 'completed'
+                );
+                const xpToDeduct = completedInstances.length * (template?.xpValue || 0);
+                const tasksToDeduct = completedInstances.length;
+
+                // Update profile: subtract XP and completed task count
+                const updatedProfile = {
+                    ...state.profile,
+                    xp: Math.max(0, state.profile.xp - xpToDeduct),
+                    totalTasksCompleted: Math.max(0, state.profile.totalTasksCompleted - tasksToDeduct),
+                };
 
                 // Soft delete: Mark template as archived
                 const newTemplates = state.templates.map(t =>
                     t.id === templateId ? { ...t, archived: true } : t
                 );
 
-                // Remove only current and future instances. Keep the past (History/Yesterday).
+                // Remove only current and future instances. Keep past (History/Yesterday).
                 const newInstances = state.instances.filter(i =>
                     !(i.taskId === templateId && i.date >= today)
                 );
 
-                set({ templates: newTemplates, instances: newInstances });
+                set({ templates: newTemplates, instances: newInstances, profile: updatedProfile });
 
                 if (state.user) {
                     logger.debug("Deleting task from Firestore...");
@@ -567,7 +584,8 @@ export const useStore = create<AppState>()(
                         await retryWithBackoff(
                             () => setDoc(doc(db, 'users', state.user!.uid), {
                                 tasks: newTemplates,
-                                instances: newInstances
+                                instances: newInstances,
+                                profile: updatedProfile,
                             }, { merge: true }),
                             3, 100
                         );

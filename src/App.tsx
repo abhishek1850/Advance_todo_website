@@ -23,6 +23,7 @@ const ProfileView = lazy(() => import('./views/ProfileView'));
 const AssistantView = lazy(() => import('./views/AssistantView'));
 const FocusView = lazy(() => import('./views/FocusView'));
 const JournalView = lazy(() => import('./views/JournalView'));
+const AttackModeView = lazy(() => import('./views/AttackModeView'));
 const CompleteSignup = lazy(() => import('./views/CompleteSignup'));
 const VerificationPending = lazy(() => import('./views/VerificationPending'));
 
@@ -47,6 +48,7 @@ const VIEW_TITLES: Record<string, string> = {
   assistant: 'AI Coach',
   focus: 'Focus Mode',
   journal: 'Attack Journal',
+  attackmode: '⚔ Attack Mode',
 };
 
 const VIEW_KEYS: Record<string, ViewType> = {
@@ -61,6 +63,7 @@ const VIEW_KEYS: Record<string, ViewType> = {
   '8': 'assistant',
   '9': 'focus',
   'j': 'journal',
+  'a': 'attackmode',
 };
 
 function App() {
@@ -175,6 +178,7 @@ function App() {
       case 'assistant': return <AssistantView />;
       case 'focus': return <FocusView />;
       case 'journal': return <JournalView />;
+      case 'attackmode': return <AttackModeView />;
       default: return <Dashboard />;
     }
   };

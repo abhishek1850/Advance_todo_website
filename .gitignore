@@ -46,3 +46,13 @@ firestore-debug.log
 *.pem
 *.key
 *.cert
+
+# Stale / local only files
+*.docx
+build_log.txt
+old_motivation*.txt
+SUPABASE_SETUP.md
+supabase-schema.sql
+SCALABILITY_REPORT.md
+AUDIT_FINDINGS.md
+PRODUCTION_AUDIT_REPORT.md

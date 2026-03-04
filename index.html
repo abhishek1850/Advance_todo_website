@@ -3,26 +3,78 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/logo.svg?v=2" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5" />
+
+  <!-- Primary Meta -->
+  <title>Attackers Arena – Execute Without Excuses</title>
+  <meta name="description"
+    content="Attackers Arena – The productivity battleground for disciplined Attackers who finish every mission on time." />
+  <meta name="author" content="Attackers Arena" />
+  <meta name="robots" content="noindex, nofollow" />
+
+  <!-- PWA -->
+  <link rel="icon" type="image/svg+xml" href="/logo.svg?v=3" />
+  <link rel="manifest" href="/manifest.json?v=3" />
+  <meta name="theme-color" content="#0a0a14" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="manifest" href="/manifest.json?v=2" />
-  <meta name="description"
-    content="Attackers Arena – The productivity battleground for disciplined Attackers who finish every mission on time." />
-  <meta name="theme-color" content="#0a0a14" />
+  <meta name="apple-mobile-web-app-title" content="Attackers Arena" />
+
+  <!-- Open Graph -->
   <meta property="og:title" content="Attackers Arena – Execute Without Excuses" />
   <meta property="og:description"
     content="The productivity battleground for disciplined Attackers who finish every mission on time." />
   <meta property="og:type" content="website" />
-  <title>Attackers Arena – Execute Without Excuses</title>
+  <meta property="og:url" content="https://attackers-arena.vercel.app" />
+  <meta property="og:image" content="/logo.svg" />
+  <meta property="og:site_name" content="Attackers Arena" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Attackers Arena – Execute Without Excuses" />
+  <meta name="twitter:description" content="The productivity battleground for disciplined Attackers." />
+  <meta name="twitter:image" content="/logo.svg" />
+
+  <!-- Content Security Policy -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http: https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://*.cloudfunctions.net https://*.supabase.co wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://generativelanguage.googleapis.com https://api.groq.com https://*.groq.com https://vercel.live; frame-src 'self' https://*.firebaseapp.com https://*.google.com https://apis.google.com" />
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: https://lh3.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.groq.com https://vercel.live; frame-src 'self' https://*.firebaseapp.com https://*.google.com https://apis.google.com" />
 </head>
 
 <body>
-  <div id="root"></div>
+  <!-- Inline critical loading screen — visible before JS renders -->
+  <div id="root">
+    <div style="
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a14;
+      gap: 20px;
+    ">
+      <svg width="48" height="48" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
+        style="animation: pulse 1.5s ease-in-out infinite;">
+        <circle cx="50" cy="50" r="45" stroke="#7c6cf0" stroke-width="4" fill="none" opacity="0.3" />
+        <circle cx="50" cy="50" r="30" fill="#7c6cf0" opacity="0.15" />
+        <text x="50" y="58" text-anchor="middle" font-size="28" fill="#a78bfa">⚔</text>
+      </svg>
+      <style>
+        @keyframes pulse {
+
+          0%,
+          100% {
+            opacity: .4
+          }
+
+          50% {
+            opacity: 1
+          }
+        }
+      </style>
+    </div>
+  </div>
+
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

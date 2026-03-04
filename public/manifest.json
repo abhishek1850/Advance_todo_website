@@ -1,23 +1,32 @@
 {
+    "id": "/",
     "short_name": "Attackers Arena",
     "name": "Attackers Arena – Execute Without Excuses",
+    "description": "The productivity battleground for disciplined Attackers who finish every mission on time.",
     "icons": [
         {
             "src": "/logo.svg",
             "sizes": "192x192",
             "type": "image/svg+xml",
-            "purpose": "any maskable"
+            "purpose": "any"
         },
         {
             "src": "/logo.svg",
             "sizes": "512x512",
             "type": "image/svg+xml",
-            "purpose": "any maskable"
+            "purpose": "maskable"
         }
     ],
-    "start_url": ".",
+    "start_url": "/",
+    "scope": "/",
     "display": "standalone",
+    "orientation": "portrait-primary",
     "theme_color": "#0a0a14",
     "background_color": "#0a0a14",
-    "description": "The productivity battleground for disciplined Attackers who finish every mission on time."
+    "categories": [
+        "productivity",
+        "utilities"
+    ],
+    "lang": "en",
+    "dir": "ltr"
 }
