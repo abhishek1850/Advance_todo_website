@@ -4,7 +4,7 @@ import { LogOut, Save, Loader2, Trophy, Flame, Target, TrendingUp, Award, Star, 
 import { useStore } from '../store';
 import { auth, db } from '../lib/firebase';
 import { updateProfile, signOut } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
 
 const getRankTitle = (level: number) => {
     if (level >= 50) return 'Grandmaster';
@@ -51,7 +51,16 @@ export default function ProfileView() {
                 await updateProfile(user, { displayName: name });
             }
             const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { 'profile.name': name });
+            try {
+                await updateDoc(userRef, { 'profile.name': name });
+            } catch (e: any) {
+                // Fallback: if doc doesn't exist yet, create it
+                if (e.code === 'not-found') {
+                    await setDoc(userRef, { profile: { name }, uid: user.uid }, { merge: true });
+                } else {
+                    throw e;
+                }
+            }
 
             setUser({ ...user, displayName: name });
             useStore.setState(state => ({

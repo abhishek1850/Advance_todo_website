@@ -689,8 +689,9 @@ export const useStore = create<AppState>()(
                 if (state.user) {
                     logger.debug("Toggling task in Firestore...");
                     try {
+                        const currentState = get();
                         await retryWithBackoff(
-                            () => setDoc(doc(db, 'users', state.user!.uid), { instances: newInstances, profile: p }, { merge: true }),
+                            () => setDoc(doc(db, 'users', state.user!.uid), { instances: newInstances, profile: p, completionHistory: currentState.completionHistory }, { merge: true }),
                             3, 100
                         );
                         logger.debug("Firestore toggle successful.");
@@ -1046,14 +1047,33 @@ export const useStore = create<AppState>()(
                     const updatedEntries = journalEntries.filter(j => j.date !== entryDate);
                     updatedEntries.push(newEntry);
 
+                    // Update totalXP as a stat tracker only — do NOT recalculate level here
+                    // Level is managed by the task toggle system with progressive scaling
+                    const updatedProfile = {
+                        ...profile,
+                        totalXP: (profile?.totalXP || 0) + xpGain,
+                        xp: profile.xp + xpGain,
+                    };
+
+                    // Level up if XP exceeds threshold (using same logic as task toggle)
+                    while (updatedProfile.xp >= updatedProfile.xpToNextLevel) {
+                        updatedProfile.xp -= updatedProfile.xpToNextLevel;
+                        updatedProfile.level += 1;
+                        updatedProfile.xpToNextLevel = Math.round(XP_PER_LEVEL * Math.pow(1.15, updatedProfile.level - 1));
+                    }
+
                     set({
                         journalEntries: updatedEntries.slice(0, 60),
-                        profile: {
-                            ...profile,
-                            totalXP: (profile?.totalXP || 0) + xpGain,
-                            level: Math.floor(((profile?.totalXP || 0) + xpGain) / XP_PER_LEVEL) + 1
-                        }
+                        profile: updatedProfile
                     });
+
+                    // Persist updated profile to Firestore
+                    if (user) {
+                        await retryWithBackoff(
+                            () => setDoc(doc(db, 'users', user.uid), { profile: updatedProfile }, { merge: true }),
+                            3, 100
+                        );
+                    }
 
                     logger.debug("Journal entry saved successfully");
                 } catch (error) {
